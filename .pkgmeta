@@ -1,0 +1,7 @@
+package-as: tabu-auc-ext
+
+ignore:
+  - docs
+  - test
+  - gallery1.png
+  - gallery2.png

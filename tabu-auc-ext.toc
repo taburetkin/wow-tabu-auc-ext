@@ -2,7 +2,7 @@
 ## Title: tabu-auc-ext
 ## Notes: Shows the auction house cut and replaces the total with the gold you keep: quantity times unit price, minus the cut.
 ## Notes-ruRU: Показывает комиссию и заменяет итог на сумму к получению: количество умножить на цену, минус комиссия.
-## Version: 0.1.0
+## Version: @project-version@
 ## IconTexture: Interface\AddOns\tabu-auc-ext\logo.png
 
 Locales\Base.lua
