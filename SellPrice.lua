@@ -40,12 +40,8 @@ local function SellFrames()
 end
 
 local function FreshItemKey(sellFrame)
-	local item = sellFrame:GetItem()
-	if item == nil or not item:IsValid() then
-		return nil
-	end
-	local itemLocation = item:GetItemLocation()
-	if itemLocation == nil then
+	local itemLocation = sellFrame:GetItem()
+	if itemLocation == nil or not itemLocation:IsValid() then
 		return nil
 	end
 	local fresh = C_AuctionHouse.GetItemKeyFromItem(itemLocation)
@@ -131,21 +127,27 @@ local function ShowTooltip(priceInput)
 	GameTooltip:Show()
 end
 
-local function SetShownItem(sellFrame, memoryKey)
-	if sellFrame.TabuAucShownItem ~= memoryKey then
+-- One value per exact item in the slot. A different item level is a different item.
+local function SlotItemKey(fresh)
+	return strjoin(":", tostringall(fresh.itemID, fresh.itemLevel, fresh.itemSuffix, fresh.battlePetSpeciesID))
+end
+
+local function SetShownItem(sellFrame, slotItem)
+	if sellFrame.TabuAucShownItem ~= slotItem then
 		sellFrame.TabuAucUserEdited = nil
 	end
-	sellFrame.TabuAucShownItem = memoryKey
+	sellFrame.TabuAucShownItem = slotItem
 end
 
 -- The item in the slot changed: forget the edit lock and what was painted for the old item.
-local function TrackSlotItem(sellFrame, memoryKey)
-	if sellFrame.TabuAucSlotItem == memoryKey then
+local function TrackSlotItem(sellFrame, slotItem)
+	if sellFrame.TabuAucSlotItem == slotItem then
 		return
 	end
-	sellFrame.TabuAucSlotItem = memoryKey
+	sellFrame.TabuAucSlotItem = slotItem
 	sellFrame.TabuAucUserEdited = nil
 	sellFrame.TabuAucShownSource = nil
+	sellFrame.TabuAucApplied = nil
 	SetShownItem(sellFrame, nil)
 	sellFrame.PriceInput.TabuAucTooltip = nil
 	PaintDigits(sellFrame.PriceInput, DEFAULT_COLOR)
@@ -171,6 +173,13 @@ local function OtherItemSearchReady(sellFrame, itemID)
 		return false
 	end
 	return C_AuctionHouse.HasFullItemSearchResults(itemKey)
+end
+
+local function OtherItemListingCount(sellFrame, itemID)
+	if sellFrame.GetPrice == nil then
+		return C_AuctionHouse.GetNumCommoditySearchResults(itemID)
+	end
+	return C_AuctionHouse.GetNumItemSearchResults(sellFrame.listDisplayedItemKey)
 end
 
 local function BlizzardUnitPrice(sellFrame)
@@ -199,18 +208,19 @@ local function BuildQuery(sellFrame, fresh, classID)
 		return query
 	end
 	query.searchReady = OtherItemSearchReady(sellFrame, fresh.itemID)
-	if query.searchReady then
+	if query.searchReady and OtherItemListingCount(sellFrame, fresh.itemID) > 0 then
 		query.blizzardPrice = BlizzardUnitPrice(sellFrame)
 	end
 	return query
 end
 
-local function ApplyChoice(sellFrame, choice, memoryKey, classID)
+local function ApplyChoice(sellFrame, choice, slotItem, classID)
 	local priceInput = sellFrame.PriceInput
 	priceInput.TabuAucApplying = true
 	priceInput:SetAmount(choice.amount)
 	priceInput.TabuAucApplying = false
-	SetShownItem(sellFrame, memoryKey)
+	SetShownItem(sellFrame, slotItem)
+	sellFrame.TabuAucApplied = { amount = choice.amount, source = choice.source }
 	sellFrame.TabuAucShownSource = choice.source
 	PaintDigits(priceInput, SOURCE_COLOR[choice.source] or DEFAULT_COLOR)
 	priceInput.TabuAucTooltip = TooltipText(choice, classID)
@@ -222,18 +232,25 @@ local function RefreshPrice(sellFrame)
 		TrackSlotItem(sellFrame, nil)
 		return
 	end
-	local memoryKey = ns.Price.MemoryKey(fresh.itemID, fresh.itemSuffix)
-	TrackSlotItem(sellFrame, memoryKey)
-	if sellFrame.TabuAucUserEdited == true or sellFrame.TabuAucShownItem == memoryKey then
+	local slotItem = SlotItemKey(fresh)
+	TrackSlotItem(sellFrame, slotItem)
+	if sellFrame.TabuAucUserEdited == true then
 		return
 	end
 	local classID = ItemClassID(fresh.itemID)
+	local applied = sellFrame.TabuAucApplied
+	if applied ~= nil and sellFrame.TabuAucShownItem == slotItem then
+		if sellFrame:GetUnitPrice() ~= applied.amount then
+			ApplyChoice(sellFrame, applied, slotItem, classID)
+		end
+		return
+	end
 	local query = BuildQuery(sellFrame, fresh, classID)
 	local choice = ns.Price.Choose(query)
 	if choice == nil then
 		return
 	end
-	ApplyChoice(sellFrame, choice, memoryKey, classID)
+	ApplyChoice(sellFrame, choice, slotItem, classID)
 end
 
 local refreshScheduled = {}
@@ -275,7 +292,7 @@ local function OnItemSet(sellFrame)
 		TrackSlotItem(sellFrame, nil)
 		return
 	end
-	TrackSlotItem(sellFrame, ns.Price.MemoryKey(fresh.itemID, fresh.itemSuffix))
+	TrackSlotItem(sellFrame, SlotItemKey(fresh))
 	if IsEquipment(ItemClassID(fresh.itemID)) then
 		QueryExactKey(sellFrame, fresh)
 	end
