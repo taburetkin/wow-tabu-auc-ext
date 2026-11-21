@@ -17,4 +17,5 @@ Locales\deDE.lua
 Locales\esES.lua
 Locales\esMX.lua
 Locales\ptBR.lua
+Price.lua
 Core.lua
