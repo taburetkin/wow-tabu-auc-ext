@@ -1,5 +1,12 @@
 # tabu-auc-ext
 
+## 1.2.0
+
+- Gear with an affix is priced from that affix. A Nobles Brand of the Sorcerer takes the cheapest Sorcerer listing, not the cheapest Nobles Brand of any other suffix.
+- The unit-price digits show where the number came from. Blue is the lowest buyout for this affix. White is the auction house minimum. Purple is the last price you typed for this item. Orange is the vendor price times your multiplier. Hover the digits for the same note.
+- A price is remembered only after you change the field yourself and the auction is created.
+- Options, category tabu-auc-ext, sets that multiplier for weapons, armor, consumables, reagents, recipes, bags, and everything else. The default is 2, twice the vendor price. Type the number or use the slider. Herbs, cloth, and ore count as reagents.
+
 ## 1.1.1
 
 - Goblin and other neutral auctioneers show the house cut and the amount you receive. The cut at those houses is 15%.
