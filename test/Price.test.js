@@ -182,3 +182,23 @@ test("settings store seven multipliers and remembered prices", () => {
 	const registrations = settings.match(/Settings\.RegisterAddOnCategory\(/g);
 	assert.equal(registrations.length, 1);
 });
+
+test("sell frame queries the real equipment key and colors the price", () => {
+	const root = path.join(__dirname, "..");
+	const sell = fs.readFileSync(path.join(root, "SellPrice.lua"), "utf8");
+	const toc = fs.readFileSync(path.join(root, "tabu-auc-ext.toc"), "utf8");
+	assert.match(toc, /SellPrice\.lua/);
+	assert.match(sell, /C_AuctionHouse\.MakeItemKey\(fresh\.itemID, fresh\.itemLevel, fresh\.itemSuffix, fresh\.battlePetSpeciesID\)/);
+	assert.match(sell, /QueryItem\(sellFrame:GetSearchContext\(\), exactKey, true\)/);
+	assert.match(sell, /HasFullItemSearchResults\(exactKey\)/);
+	assert.match(sell, /ns\.Price\.MinimumBuyout\(amounts\)/);
+	assert.match(sell, /ns\.Price\.Choose\(query\)/);
+	assert.match(sell, /userInput/);
+	assert.match(sell, /PreClick/);
+	assert.match(sell, /AUCTION_HOUSE_AUCTION_CREATED/);
+	assert.match(sell, /ns\.Settings\.Remember\(snapshot\.itemID, snapshot\.itemSuffix, snapshot\.amount, snapshot\.userEdited\)/);
+	assert.match(sell, /0\.2, 0\.6, 1/);
+	assert.match(sell, /0\.64, 0\.21, 0\.93/);
+	assert.match(sell, /1, 0\.5, 0/);
+	assert.equal(sell.includes("totalPrice:Set"), false);
+});

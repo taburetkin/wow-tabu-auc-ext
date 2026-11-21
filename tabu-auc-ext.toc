@@ -20,4 +20,5 @@ Locales\esMX.lua
 Locales\ptBR.lua
 Price.lua
 Settings.lua
+SellPrice.lua
 Core.lua
