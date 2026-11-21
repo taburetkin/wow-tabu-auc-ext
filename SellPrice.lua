@@ -272,16 +272,21 @@ local function RefreshPrice(sellFrame)
 	ApplyChoice(sellFrame, choice, slotItem, classID)
 end
 
+-- IsShown stays true after the auction house hides this frame's parent.
+local function SellFrameVisible(sellFrame)
+	return sellFrame ~= nil and sellFrame:IsVisible()
+end
+
 local refreshScheduled = {}
 
 local function ScheduleRefresh(sellFrame)
-	if refreshScheduled[sellFrame] then
+	if sellFrame == nil or refreshScheduled[sellFrame] then
 		return
 	end
 	refreshScheduled[sellFrame] = true
 	C_Timer.After(0, function()
 		refreshScheduled[sellFrame] = nil
-		if sellFrame:IsShown() then
+		if SellFrameVisible(sellFrame) then
 			RefreshPrice(sellFrame)
 		end
 	end)
@@ -290,7 +295,7 @@ end
 local function RefreshShownFrames()
 	local frames = SellFrames()
 	for index = 1, #frames do
-		if frames[index].TabuAucPriceHooked and frames[index]:IsShown() then
+		if frames[index].TabuAucPriceHooked and SellFrameVisible(frames[index]) then
 			ScheduleRefresh(frames[index])
 		end
 	end

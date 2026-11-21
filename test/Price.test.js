@@ -210,4 +210,10 @@ test("sell frame queries the real equipment key and colors the price", () => {
 	assert.match(sell, /0\.64, 0\.21, 0\.93/);
 	assert.match(sell, /1, 0\.5, 0/);
 	assert.equal(sell.includes("totalPrice:Set"), false);
+	const refresh = sell.slice(sell.indexOf("local function RefreshShownFrames"), sell.indexOf("local function QueryExactKey"));
+	const schedule = sell.slice(sell.indexOf("local function ScheduleRefresh"), sell.indexOf("local function RefreshShownFrames"));
+	assert.match(refresh, /SellFrameVisible\(frames\[index\]\)/);
+	assert.match(schedule, /SellFrameVisible\(sellFrame\)/);
+	assert.equal(refresh.includes("IsShown()"), false);
+	assert.equal(schedule.includes("IsShown()"), false);
 });

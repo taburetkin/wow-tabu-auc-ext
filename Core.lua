@@ -548,6 +548,11 @@ local function UpdateCut(sellFrame)
 	ApplyShown(sellFrame, receive, copper, deltaAmount, deltaColor)
 end
 
+-- IsShown stays true after the auction house hides this frame's parent.
+local function SellFrameVisible(sellFrame)
+	return sellFrame ~= nil and sellFrame:IsVisible()
+end
+
 local cutScheduled = {}
 
 local function ScheduleCut(sellFrame)
@@ -557,7 +562,9 @@ local function ScheduleCut(sellFrame)
 	cutScheduled[sellFrame] = true
 	C_Timer.After(0, function()
 		cutScheduled[sellFrame] = nil
-		UpdateCut(sellFrame)
+		if SellFrameVisible(sellFrame) then
+			UpdateCut(sellFrame)
+		end
 	end)
 end
 
@@ -597,7 +604,7 @@ local function RefreshVisibleSellFrames()
 	local frames = { AuctionHouseFrame.ItemSellFrame, AuctionHouseFrame.CommoditiesSellFrame }
 	for index = 1, #frames do
 		local frame = frames[index]
-		if frame ~= nil and frame:IsShown() then
+		if SellFrameVisible(frame) then
 			ScheduleCut(frame)
 		end
 	end

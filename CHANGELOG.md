@@ -1,5 +1,9 @@
 # tabu-auc-ext
 
+## 1.2.1
+
+- Using an item outside the auction house no longer reports an addon error. The sell price updates only while the auction window is open.
+
 ## 1.2.0
 
 - Gear with an affix is priced from that affix. A Nobles Brand of the Sorcerer takes the cheapest Sorcerer listing, not the cheapest Nobles Brand of any other suffix.

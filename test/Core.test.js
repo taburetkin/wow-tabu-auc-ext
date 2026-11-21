@@ -245,3 +245,12 @@ test("cut is quantity times unit price times the house percent", () => {
 	assert.match(ptBR, /ns\.L\.CUT_LABEL = "Comissão"/);
 	assert.match(ptBR, /ns\.L\.RECEIVE_LABEL = "Você recebe"/);
 });
+
+test("a hidden auction house does not refresh the sell frame", () => {
+	const refresh = lua.slice(lua.indexOf("local function RefreshVisibleSellFrames"), lua.indexOf("local function OnEvent"));
+	const schedule = lua.slice(lua.indexOf("local function ScheduleCut"), lua.indexOf("local function OnTotalPriceUpdated"));
+	assert.match(refresh, /SellFrameVisible\(frame\)/);
+	assert.match(schedule, /SellFrameVisible\(sellFrame\)/);
+	assert.equal(refresh.includes("IsShown()"), false);
+	assert.equal(schedule.includes("IsShown()"), false);
+});
