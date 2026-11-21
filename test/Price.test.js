@@ -127,3 +127,37 @@ test("item class maps onto the seven multiplier keys", () => {
 	assert.match(priceLua, /function ns\.Price\.ShouldRemember\(userEdited\)/);
 	assert.match(priceLua, /classID == 7/);
 });
+
+test("price sources and multiplier labels are localized", () => {
+	const root = path.join(__dirname, "..");
+	const base = fs.readFileSync(path.join(root, "Locales", "Base.lua"), "utf8");
+	const ru = fs.readFileSync(path.join(root, "Locales", "ruRU.lua"), "utf8");
+	const fr = fs.readFileSync(path.join(root, "Locales", "frFR.lua"), "utf8");
+	const de = fs.readFileSync(path.join(root, "Locales", "deDE.lua"), "utf8");
+	const es = fs.readFileSync(path.join(root, "Locales", "esES.lua"), "utf8");
+	const mx = fs.readFileSync(path.join(root, "Locales", "esMX.lua"), "utf8");
+	const pt = fs.readFileSync(path.join(root, "Locales", "ptBR.lua"), "utf8");
+	assert.match(base, /PRICE_BLIZZARD = "Auction house minimum\."/);
+	assert.match(base, /PRICE_EXACT = "Lowest price for this affix\."/);
+	assert.match(base, /PRICE_REMEMBERED = "Last price you entered for this item\."/);
+	assert.match(base, /PRICE_MULTIPLIER = "Vendor price × %s \(%s\)\."/);
+	assert.match(base, /TYPE_WEAPON = "Weapons"/);
+	assert.match(base, /TYPE_ARMOR = "Armor"/);
+	assert.match(base, /TYPE_CONSUMABLE = "Consumables"/);
+	assert.match(base, /TYPE_REAGENT = "Reagents"/);
+	assert.match(base, /TYPE_RECIPE = "Recipes"/);
+	assert.match(base, /TYPE_BAG = "Bags"/);
+	assert.match(base, /TYPE_OTHER = "Other"/);
+	assert.match(ru, /PRICE_BLIZZARD = "Минимум аукциона\."/);
+	assert.match(ru, /PRICE_EXACT = "Минимальная цена этого аффикса\."/);
+	assert.match(ru, /PRICE_REMEMBERED = "Последняя цена, которую вы ввели для этого предмета\."/);
+	assert.match(ru, /PRICE_MULTIPLIER = "Цена торговцу × %s \(%s\)\."/);
+	assert.match(ru, /TYPE_WEAPON = "Оружие"/);
+	assert.match(ru, /TYPE_REAGENT = "Реагенты"/);
+	assert.match(ru, /TYPE_OTHER = "Прочее"/);
+	for (const file of [fr, de, es, mx, pt]) {
+		assert.match(file, /PRICE_BLIZZARD = "/);
+		assert.match(file, /TYPE_WEAPON = "/);
+		assert.match(file, /TYPE_OTHER = "/);
+	}
+});
