@@ -8,6 +8,7 @@
 ## Notes-esMX: Añade la comisión y el importe que recibes debajo del total: cantidad por precio unitario, menos la comisión.
 ## Notes-ptBR: Adiciona a comissão e o valor que você recebe abaixo do total: quantidade vezes o preço unitário, menos a comissão.
 ## Version: @project-version@
+## SavedVariables: TabuAucExtDB
 ## IconTexture: Interface\AddOns\tabu-auc-ext\logo.png
 
 Locales\Base.lua
@@ -18,4 +19,5 @@ Locales\esES.lua
 Locales\esMX.lua
 Locales\ptBR.lua
 Price.lua
+Settings.lua
 Core.lua

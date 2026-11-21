@@ -161,3 +161,24 @@ test("price sources and multiplier labels are localized", () => {
 		assert.match(file, /TYPE_OTHER = "/);
 	}
 });
+
+test("settings store seven multipliers and remembered prices", () => {
+	const root = path.join(__dirname, "..");
+	const settings = fs.readFileSync(path.join(root, "Settings.lua"), "utf8");
+	const toc = fs.readFileSync(path.join(root, "tabu-auc-ext.toc"), "utf8");
+	assert.match(toc, /## SavedVariables: TabuAucExtDB/);
+	assert.match(toc, /Settings\.lua/);
+	assert.match(settings, /local DEFAULT_MULTIPLIER = 2/);
+	assert.match(settings, /local MULTIPLIER_MIN = 0/);
+	assert.match(settings, /local MULTIPLIER_MAX = 100/);
+	assert.match(settings, /Settings\.RegisterVerticalLayoutCategory\("tabu-auc-ext"\)/);
+	assert.match(settings, /Settings\.RegisterAddOnCategory\(category\)/);
+	assert.match(settings, /Settings\.CreateSliderOptions\(MULTIPLIER_MIN, MULTIPLIER_MAX, 0\.1\)/);
+	assert.match(settings, /function ns\.Settings\.Multiplier\(classID\)/);
+	assert.match(settings, /function ns\.Settings\.Remembered\(itemID, itemSuffix\)/);
+	assert.match(settings, /function ns\.Settings\.Remember\(itemID, itemSuffix, amount, userEdited\)/);
+	assert.match(settings, /ns\.Price\.ShouldRemember\(userEdited\)/);
+	assert.equal(settings.includes("RegisterVerticalLayoutCategory"), true);
+	const registrations = settings.match(/RegisterAddOnCategory/g);
+	assert.equal(registrations.length, 2);
+});

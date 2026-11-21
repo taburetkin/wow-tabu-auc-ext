@@ -101,7 +101,7 @@ test("addon identity and Forever TOC", () => {
 	assert.match(toc, /^Locales\\esMX\.lua$/m);
 	assert.match(toc, /^Locales\\ptBR\.lua$/m);
 	assert.match(toc, /^Core\.lua$/m);
-	assert.equal(toc.includes("SavedVariables"), false);
+	assert.match(toc, /^## SavedVariables: TabuAucExtDB$/m);
 	assert.match(toc, /^## Notes: /m);
 	assert.match(toc, /^## Notes-ruRU: /m);
 	assert.match(toc, /^## Notes-frFR: /m);
