@@ -7,6 +7,11 @@ const addonRoot = path.join(__dirname, "..");
 const lua = fs.readFileSync(path.join(addonRoot, "Core.lua"), "utf8");
 const toc = fs.readFileSync(path.join(addonRoot, "tabu-auc-ext.toc"), "utf8");
 const ru = fs.readFileSync(path.join(addonRoot, "Locales", "ruRU.lua"), "utf8");
+const fr = fs.readFileSync(path.join(addonRoot, "Locales", "frFR.lua"), "utf8");
+const de = fs.readFileSync(path.join(addonRoot, "Locales", "deDE.lua"), "utf8");
+const esES = fs.readFileSync(path.join(addonRoot, "Locales", "esES.lua"), "utf8");
+const esMX = fs.readFileSync(path.join(addonRoot, "Locales", "esMX.lua"), "utf8");
+const ptBR = fs.readFileSync(path.join(addonRoot, "Locales", "ptBR.lua"), "utf8");
 
 const NEUTRAL_PERCENT = 15;
 const FACTION_PERCENT = 5;
@@ -69,16 +74,30 @@ function deltaDisplay(receive, vendorTotal) {
 	return { amount: 0, color: "red" };
 }
 
+function hidesSmallChange(amount) {
+	return amount >= 10000;
+}
+
 test("addon identity and Forever TOC", () => {
 	assert.equal(path.basename(addonRoot), "tabu-auc-ext");
 	assert.match(toc, /^## Interface: 16001/m);
 	assert.match(toc, /^## Title: tabu-auc-ext/m);
 	assert.match(toc, /^Locales\\Base\.lua$/m);
 	assert.match(toc, /^Locales\\ruRU\.lua$/m);
+	assert.match(toc, /^Locales\\frFR\.lua$/m);
+	assert.match(toc, /^Locales\\deDE\.lua$/m);
+	assert.match(toc, /^Locales\\esES\.lua$/m);
+	assert.match(toc, /^Locales\\esMX\.lua$/m);
+	assert.match(toc, /^Locales\\ptBR\.lua$/m);
 	assert.match(toc, /^Core\.lua$/m);
 	assert.equal(toc.includes("SavedVariables"), false);
 	assert.match(toc, /^## Notes: /m);
 	assert.match(toc, /^## Notes-ruRU: /m);
+	assert.match(toc, /^## Notes-frFR: /m);
+	assert.match(toc, /^## Notes-deDE: /m);
+	assert.match(toc, /^## Notes-esES: /m);
+	assert.match(toc, /^## Notes-esMX: /m);
+	assert.match(toc, /^## Notes-ptBR: /m);
 });
 
 test("neutral auctioneer is 15 percent and faction auctioneer is 5", () => {
@@ -119,7 +138,17 @@ test("cut is quantity times unit price times the house percent", () => {
 	assert.match(lua, /AuctionHouseFrame\.ItemSellFrame/);
 	assert.match(lua, /AuctionHouseFrame\.CommoditiesSellFrame/);
 	assert.match(lua, /AuctionHouseAlignedPriceDisplayTemplate/);
-	assert.match(lua, /layoutIndex = CUT_LAYOUT_INDEX/);
+	assert.match(lua, /local CUT_LAYOUT_INDEX = 64/);
+	assert.match(lua, /local RECEIVE_LAYOUT_INDEX = 65/);
+	assert.match(lua, /button\.ignoreInLayout = true/);
+	assert.match(lua, /button\.layoutIndex = nil/);
+	assert.match(lua, /SetPoint\("BOTTOMRIGHT", sellFrame, "BOTTOMRIGHT", -FOOTER_INSET, FOOTER_INSET\)/);
+	assert.match(lua, /SetPoint\("BOTTOMLEFT", sellFrame, "BOTTOMLEFT", FOOTER_INSET - 6, FOOTER_INSET - 9\)/);
+	assert.match(lua, /hooksecurefunc\(frame, "Layout", PinSellFooter\)/);
+	assert.match(lua, /EnsurePriceRow\(sellFrame, "TabuAucCut", CUT_LAYOUT_INDEX, ns\.L\.CUT_LABEL\)/);
+	assert.match(lua, /EnsurePriceRow\(sellFrame, "TabuAucReceive", RECEIVE_LAYOUT_INDEX, ns\.L\.RECEIVE_LABEL\)/);
+	assert.equal(lua.includes("totalPrice:Set"), false);
+	assert.equal(lua.includes("TotalPrice:Set"), false);
 	assert.equal(receiveCopper(20, 10000, 5), 190000);
 	assert.equal(receiveCopper(20, 10000, 15), 170000);
 	assert.equal(receiveCopper(1, 199, 5), 190);
@@ -142,9 +171,18 @@ test("cut is quantity times unit price times the house percent", () => {
 	assert.equal(receiveCopper(listingQuantity(0, false), 10000, 5), 9500);
 	assert.match(lua, /if not quantityShown then/);
 	assert.match(lua, /return 1/);
-	assert.match(lua, /totalPrice:SetAmount\(receive\)/);
+	assert.match(lua, /receiveRow:SetAmount\(receive\)/);
+	assert.equal(hidesSmallChange(10000), true);
+	assert.equal(hidesSmallChange(9999), false);
+	assert.match(lua, /local COPPER_PER_GOLD = 10000/);
+	assert.match(lua, /return amount >= COPPER_PER_GOLD/);
+	assert.match(lua, /delta\.SilverDisplay:SetForcedHidden\(hideSmallChange\)/);
+	assert.match(lua, /delta\.CopperDisplay:SetForcedHidden\(hideSmallChange or delta\.hideCopper == true\)/);
+	assert.match(lua, /GetMoneyString\(amount, true\)/);
+	assert.match(lua, /SetScript\("OnEnter", ShowDeltaTooltip\)/);
+	assert.match(lua, /delta:SetResizeToFit\(true\)/);
 	assert.match(lua, /delta:SetAmount\(deltaAmount\)/);
-	assert.match(lua, /totalPrice:SetLabelColor\(color or NORMAL_FONT_COLOR\)/);
+	assert.match(lua, /receiveRow:SetLabelColor\(color or NORMAL_FONT_COLOR\)/);
 	assert.match(lua, /local DELTA_OFFSET = 20/);
 	assert.match(lua, /return "\+"/);
 	assert.match(lua, /return "-"/);
@@ -162,7 +200,22 @@ test("cut is quantity times unit price times the house percent", () => {
 	assert.match(lua, /unitPrice = 0/);
 	assert.match(lua, /vendorTotal = 0/);
 	assert.match(lua, /AUCTION_HOUSE_AUCTION_CREATED/);
-	assert.match(lua, /totalPrice:SetLabel\(ns\.L\.RECEIVE_LABEL\)/);
+	assert.match(lua, /ns\.L\.RECEIVE_LABEL/);
 	assert.match(ru, /ns\.L\.CUT_LABEL = "Комиссия"/);
 	assert.match(ru, /ns\.L\.RECEIVE_LABEL = "На руки"/);
+	assert.match(fr, /GetLocale\(\) ~= "frFR"/);
+	assert.match(fr, /ns\.L\.CUT_LABEL = "Commission"/);
+	assert.match(fr, /ns\.L\.RECEIVE_LABEL = "Vous recevez"/);
+	assert.match(de, /GetLocale\(\) ~= "deDE"/);
+	assert.match(de, /ns\.L\.CUT_LABEL = "Provision"/);
+	assert.match(de, /ns\.L\.RECEIVE_LABEL = "Ihr erhaltet"/);
+	assert.match(esES, /GetLocale\(\) ~= "esES"/);
+	assert.match(esES, /ns\.L\.CUT_LABEL = "Comisión"/);
+	assert.match(esES, /ns\.L\.RECEIVE_LABEL = "Recibes"/);
+	assert.match(esMX, /GetLocale\(\) ~= "esMX"/);
+	assert.match(esMX, /ns\.L\.CUT_LABEL = "Comisión"/);
+	assert.match(esMX, /ns\.L\.RECEIVE_LABEL = "Recibes"/);
+	assert.match(ptBR, /GetLocale\(\) ~= "ptBR"/);
+	assert.match(ptBR, /ns\.L\.CUT_LABEL = "Comissão"/);
+	assert.match(ptBR, /ns\.L\.RECEIVE_LABEL = "Você recebe"/);
 });

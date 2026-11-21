@@ -1,10 +1,20 @@
 ## Interface: 16001
 ## Title: tabu-auc-ext
-## Notes: Shows the auction house cut and replaces the total with the gold you keep: quantity times unit price, minus the cut.
-## Notes-ruRU: Показывает комиссию и заменяет итог на сумму к получению: количество умножить на цену, минус комиссия.
+## Notes: Adds the house cut and the gold you keep under the auction total: quantity times unit price, minus the cut.
+## Notes-ruRU: Добавляет под итог комиссию и сумму к получению: количество умножить на цену, минус комиссия.
+## Notes-frFR: Ajoute la commission et la somme que vous recevez sous le total : quantité multipliée par le prix unitaire, moins la commission.
+## Notes-deDE: Zeigt unter dem Gesamtpreis die Provision und den Betrag, den Ihr erhaltet: Menge mal Stückpreis, abzüglich der Provision.
+## Notes-esES: Añade la comisión y el importe que recibes debajo del total: cantidad por precio unitario, menos la comisión.
+## Notes-esMX: Añade la comisión y el importe que recibes debajo del total: cantidad por precio unitario, menos la comisión.
+## Notes-ptBR: Adiciona a comissão e o valor que você recebe abaixo do total: quantidade vezes o preço unitário, menos a comissão.
 ## Version: @project-version@
 ## IconTexture: Interface\AddOns\tabu-auc-ext\logo.png
 
 Locales\Base.lua
 Locales\ruRU.lua
+Locales\frFR.lua
+Locales\deDE.lua
+Locales\esES.lua
+Locales\esMX.lua
+Locales\ptBR.lua
 Core.lua

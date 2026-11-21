@@ -3,7 +3,10 @@ local _, ns = ...
 local FACTION_PERCENT = 5
 local NEUTRAL_PERCENT = 15
 local NEUTRAL_FACTION = "Neutral"
-local CUT_LAYOUT_INDEX = 55
+local CUT_LAYOUT_INDEX = 64
+local RECEIVE_LAYOUT_INDEX = 65
+local FOOTER_INSET = 8
+local COPPER_PER_GOLD = 10000
 local AUCTION_HOUSE_UI = "Blizzard_AuctionHouseUI"
 
 local openFaction = nil
@@ -153,16 +156,31 @@ local function CaptureFaction()
 	end
 end
 
-local function EnsureRow(sellFrame)
-	local row = sellFrame.TabuAucCut
-	if row ~= nil then
-		return row
+local function EnsurePriceRow(sellFrame, field, layoutIndex, label)
+	local row = sellFrame[field]
+	if row == nil then
+		row = CreateFrame("Frame", nil, sellFrame, "AuctionHouseAlignedPriceDisplayTemplate")
+		row:SetLabel(label)
+		sellFrame[field] = row
 	end
-	row = CreateFrame("Frame", nil, sellFrame, "AuctionHouseAlignedPriceDisplayTemplate")
-	row.layoutIndex = CUT_LAYOUT_INDEX
-	row:SetLabel(ns.L.CUT_LABEL)
-	sellFrame.TabuAucCut = row
+	row.layoutIndex = layoutIndex
 	return row
+end
+
+local function PinSellFooter(sellFrame)
+	local button = sellFrame.PostButton
+	if button ~= nil then
+		button.ignoreInLayout = true
+		button.layoutIndex = nil
+		button:ClearAllPoints()
+		button:SetPoint("BOTTOMRIGHT", sellFrame, "BOTTOMRIGHT", -FOOTER_INSET, FOOTER_INSET)
+	end
+	local checkbox = sellFrame.BuyoutModeCheckButton
+	if checkbox ~= nil then
+		checkbox.ignoreInLayout = true
+		checkbox:ClearAllPoints()
+		checkbox:SetPoint("BOTTOMLEFT", sellFrame, "BOTTOMLEFT", FOOTER_INSET - 6, FOOTER_INSET - 9)
+	end
 end
 
 local function RightmostDenomination(moneyDisplay)
@@ -175,12 +193,12 @@ local function RightmostDenomination(moneyDisplay)
 	return moneyDisplay.GoldDisplay
 end
 
-local function EnsureDelta(totalPrice)
-	local delta = totalPrice.TabuAucDelta
+local function EnsureDelta(priceRow)
+	local delta = priceRow.TabuAucDelta
 	if delta ~= nil then
 		return delta
 	end
-	local source = totalPrice.MoneyDisplayFrame
+	local source = priceRow.MoneyDisplayFrame
 	delta = CreateFrame("Frame", nil, source, "MoneyDisplayFrameTemplate")
 	delta.leftAlign = true
 	if source.hideCopper then
@@ -192,8 +210,9 @@ local function EnsureDelta(totalPrice)
 		delta.SilverDisplay:SetDisplayType(MoneyDenominationDisplayType.AuctionHouseSilver)
 		delta.GoldDisplay:SetDisplayType(MoneyDenominationDisplayType.AuctionHouseGold)
 	end
+	delta:SetResizeToFit(true)
 	delta:UpdateAnchoring()
-	totalPrice.TabuAucDelta = delta
+	priceRow.TabuAucDelta = delta
 	return delta
 end
 
@@ -210,13 +229,13 @@ local function DeltaSign(colorName, amount)
 	return ""
 end
 
-local function EnsureDeltaSign(totalPrice)
-	local sign = totalPrice.TabuAucDeltaSign
+local function EnsureDeltaSign(priceRow)
+	local sign = priceRow.TabuAucDeltaSign
 	if sign ~= nil then
 		return sign
 	end
-	sign = totalPrice.MoneyDisplayFrame:CreateFontString(nil, "OVERLAY", "PriceFont")
-	totalPrice.TabuAucDeltaSign = sign
+	sign = priceRow.MoneyDisplayFrame:CreateFontString(nil, "OVERLAY", "PriceFont")
+	priceRow.TabuAucDeltaSign = sign
 	return sign
 end
 
@@ -234,8 +253,75 @@ local function ApplySign(sign, colorName, color, amount)
 	sign:Show()
 end
 
-local function PlaceDelta(totalPrice, delta, sign)
-	local anchor = RightmostDenomination(totalPrice.MoneyDisplayFrame)
+local function HidesSmallChange(amount)
+	return amount >= COPPER_PER_GOLD
+end
+
+local function ApplySmallChangeVisibility(delta, amount)
+	local hideSmallChange = HidesSmallChange(amount)
+	delta.SilverDisplay:SetForcedHidden(hideSmallChange)
+	delta.CopperDisplay:SetForcedHidden(hideSmallChange or delta.hideCopper == true)
+end
+
+local function ShowDeltaTooltip(delta)
+	local amount = delta.TabuAucExact
+	if amount == nil then
+		return
+	end
+	GameTooltip:SetOwner(delta, "ANCHOR_RIGHT")
+	local text = DeltaSign(delta.TabuAucExactColor, amount) .. GetMoneyString(amount, true)
+	local color = MoneyColor(delta.TabuAucExactColor)
+	if color ~= nil then
+		GameTooltip:SetText(text, color:GetRGB())
+	else
+		GameTooltip:SetText(text)
+	end
+	GameTooltip:Show()
+end
+
+local function RefreshOwnedDeltaTooltip(delta)
+	if GameTooltip:GetOwner() ~= delta then
+		return
+	end
+	if delta.TabuAucExact == nil then
+		GameTooltip:Hide()
+		return
+	end
+	ShowDeltaTooltip(delta)
+end
+
+local function SetDeltaTooltip(delta, colorName, amount)
+	if HidesSmallChange(amount) then
+		delta.TabuAucExact = amount
+		delta.TabuAucExactColor = colorName
+	else
+		delta.TabuAucExact = nil
+		delta.TabuAucExactColor = nil
+	end
+	RefreshOwnedDeltaTooltip(delta)
+end
+
+local function ClearDeltaTooltip(delta)
+	if delta == nil then
+		return
+	end
+	delta.TabuAucExact = nil
+	delta.TabuAucExactColor = nil
+	RefreshOwnedDeltaTooltip(delta)
+end
+
+local function BindDeltaTooltip(delta)
+	if delta.TabuAucTooltipBound then
+		return
+	end
+	delta.TabuAucTooltipBound = true
+	delta:EnableMouse(true)
+	delta:SetScript("OnEnter", ShowDeltaTooltip)
+	delta:SetScript("OnLeave", GameTooltip_Hide)
+end
+
+local function PlaceDelta(priceRow, delta, sign)
+	local anchor = RightmostDenomination(priceRow.MoneyDisplayFrame)
 	if anchor == nil then
 		return
 	end
@@ -263,39 +349,44 @@ local function HasSellItem(sellFrame)
 	return true
 end
 
-local function ShowReceive(sellFrame, receive, deltaAmount, deltaColor)
-	local totalPrice = sellFrame.TotalPrice
-	if totalPrice == nil then
-		return
-	end
+local function ShowReceive(receiveRow, receive, deltaAmount, deltaColor)
 	if receive == nil then
-		totalPrice:SetLabel(AUCTION_HOUSE_TOTAL_PRICE_LABEL)
-		totalPrice:SetLabelColor(NORMAL_FONT_COLOR)
-		if totalPrice.TabuAucDelta ~= nil then
-			totalPrice.TabuAucDelta:Hide()
+		local wasShown = receiveRow:IsShown()
+		if wasShown then
+			receiveRow:Hide()
 		end
-		if totalPrice.TabuAucDeltaSign ~= nil then
-			totalPrice.TabuAucDeltaSign:Hide()
+		if receiveRow.TabuAucDelta ~= nil then
+			receiveRow.TabuAucDelta:Hide()
+			ClearDeltaTooltip(receiveRow.TabuAucDelta)
 		end
-		return
+		if receiveRow.TabuAucDeltaSign ~= nil then
+			receiveRow.TabuAucDeltaSign:Hide()
+		end
+		return wasShown
 	end
-	totalPrice:SetLabel(ns.L.RECEIVE_LABEL)
-	totalPrice:SetAmount(receive)
-	ApplyMoneyColor(totalPrice.MoneyDisplayFrame, nil)
+	local wasHidden = not receiveRow:IsShown()
+	receiveRow:SetAmount(receive)
+	receiveRow:Show()
+	ApplyMoneyColor(receiveRow.MoneyDisplayFrame, nil)
 	local color = MoneyColor(deltaColor)
-	totalPrice:SetLabelColor(color or NORMAL_FONT_COLOR)
-	local delta = EnsureDelta(totalPrice)
-	local sign = EnsureDeltaSign(totalPrice)
+	receiveRow:SetLabelColor(color or NORMAL_FONT_COLOR)
+	local delta = EnsureDelta(receiveRow)
+	local sign = EnsureDeltaSign(receiveRow)
 	if deltaAmount == nil then
 		delta:Hide()
 		sign:Hide()
-		return
+		ClearDeltaTooltip(delta)
+		return wasHidden
 	end
+	ApplySmallChangeVisibility(delta, deltaAmount)
+	SetDeltaTooltip(delta, deltaColor, deltaAmount)
+	BindDeltaTooltip(delta)
 	delta:SetAmount(deltaAmount)
 	delta:Show()
 	ApplySign(sign, deltaColor, color, deltaAmount)
-	PlaceDelta(totalPrice, delta, sign)
+	PlaceDelta(receiveRow, delta, sign)
 	ApplyMoneyColor(delta, color)
+	return wasHidden
 end
 
 local function ListingView(sellFrame)
@@ -362,21 +453,27 @@ local function QuotePending(sellFrame)
 end
 
 local function ApplyShown(sellFrame, receive, copper, deltaAmount, deltaColor)
-	local created = sellFrame.TabuAucCut == nil
-	local row = EnsureRow(sellFrame)
-	ShowReceive(sellFrame, receive, deltaAmount, deltaColor)
+	local cutCreated = sellFrame.TabuAucCut == nil
+	local receiveCreated = sellFrame.TabuAucReceive == nil
+	local cutRow = EnsurePriceRow(sellFrame, "TabuAucCut", CUT_LAYOUT_INDEX, ns.L.CUT_LABEL)
+	local receiveRow = EnsurePriceRow(sellFrame, "TabuAucReceive", RECEIVE_LAYOUT_INDEX, ns.L.RECEIVE_LABEL)
+	local layoutChanged = ShowReceive(receiveRow, receive, deltaAmount, deltaColor)
 	if copper == nil then
-		if row:IsShown() then
-			row:Hide()
-			sellFrame:MarkDirty()
+		if cutRow:IsShown() then
+			cutRow:Hide()
+			layoutChanged = true
 		end
 	else
-		local wasHidden = not row:IsShown()
-		row:SetAmount(copper)
-		row:Show()
-		if created or wasHidden then
-			sellFrame:MarkDirty()
+		local wasHidden = not cutRow:IsShown()
+		cutRow:SetAmount(copper)
+		cutRow:Show()
+		if wasHidden then
+			layoutChanged = true
 		end
+	end
+	PinSellFooter(sellFrame)
+	if cutCreated or receiveCreated or layoutChanged then
+		sellFrame:MarkDirty()
 	end
 	sellFrame.TabuAucShown = {
 		receive = receive,
@@ -439,6 +536,8 @@ local function HookOneSellFrame(frame)
 		return
 	end
 	frame.TabuAucExtHooked = true
+	PinSellFooter(frame)
+	hooksecurefunc(frame, "Layout", PinSellFooter)
 	hooksecurefunc(frame, "UpdateTotalPrice", OnTotalPriceUpdated)
 end
 

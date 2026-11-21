@@ -1,7 +1,12 @@
 package-as: tabu-auc-ext
 
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
 ignore:
   - docs
   - test
   - gallery1.png
   - gallery2.png
+  - CHANGELOG.md
