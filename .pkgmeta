@@ -9,4 +9,8 @@ ignore:
   - test
   - gallery1.png
   - gallery2.png
+  - gallery1_raw.png
+  - gallery2_raw.png
+  - gallery-green.png
+  - gallery-red.png
   - CHANGELOG.md
