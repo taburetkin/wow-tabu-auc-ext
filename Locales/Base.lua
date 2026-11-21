@@ -15,5 +15,6 @@ ns.L = {
 	TYPE_BAG = "Bags",
 	TYPE_OTHER = "Other",
 	OPTIONS_UNAVAILABLE = "Auction price settings could not be registered.",
+	MULTIPLIER_HEADING = "Vendor price multiplier. 2 is double.",
 	MULTIPLIER_TOOLTIP = "Used when this item has no auction price and no price you entered.",
 }

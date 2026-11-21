@@ -148,6 +148,7 @@ test("price sources and multiplier labels are localized", () => {
 	assert.match(base, /TYPE_RECIPE = "Recipes"/);
 	assert.match(base, /TYPE_BAG = "Bags"/);
 	assert.match(base, /TYPE_OTHER = "Other"/);
+	assert.match(base, /MULTIPLIER_HEADING = "Vendor price multiplier\. 2 is double\."/);
 	assert.match(ru, /PRICE_BLIZZARD = "Минимум аукциона\."/);
 	assert.match(ru, /PRICE_EXACT = "Минимальная цена этого аффикса\."/);
 	assert.match(ru, /PRICE_REMEMBERED = "Последняя цена, которую вы ввели для этого предмета\."/);
@@ -155,10 +156,12 @@ test("price sources and multiplier labels are localized", () => {
 	assert.match(ru, /TYPE_WEAPON = "Оружие"/);
 	assert.match(ru, /TYPE_REAGENT = "Реагенты"/);
 	assert.match(ru, /TYPE_OTHER = "Прочее"/);
+	assert.match(ru, /MULTIPLIER_HEADING = "Множитель цены торговцу\. 2 — двойная цена\."/);
 	for (const file of [fr, de, es, mx, pt]) {
 		assert.match(file, /PRICE_BLIZZARD = "/);
 		assert.match(file, /TYPE_WEAPON = "/);
 		assert.match(file, /TYPE_OTHER = "/);
+		assert.match(file, /MULTIPLIER_HEADING = "/);
 	}
 });
 
@@ -174,6 +177,8 @@ test("settings store seven multipliers and remembered prices", () => {
 	assert.match(settings, /Settings\.RegisterVerticalLayoutCategory\("tabu-auc-ext"\)/);
 	assert.match(settings, /Settings\.RegisterAddOnCategory\(category\)/);
 	assert.match(settings, /Settings\.CreateSliderOptions\(MULTIPLIER_MIN, MULTIPLIER_MAX, 0\.1\)/);
+	assert.match(settings, /CreateSettingsListSectionHeaderInitializer\(ns\.L\.MULTIPLIER_HEADING/);
+	assert.match(settings, /CreateFrame\("EditBox"/);
 	assert.match(settings, /function ns\.Settings\.Multiplier\(classID\)/);
 	assert.match(settings, /function ns\.Settings\.Remembered\(itemID, itemSuffix\)/);
 	assert.match(settings, /function ns\.Settings\.Remember\(itemID, itemSuffix, amount, userEdited\)/);

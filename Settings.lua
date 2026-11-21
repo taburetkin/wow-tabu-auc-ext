@@ -79,6 +79,107 @@ function ns.Settings.Remember(itemID, itemSuffix, amount, userEdited)
 	TabuAucExtDB.prices[key] = amount
 end
 
+local ownedSettings = {}
+
+local function ParseMultiplier(text)
+	if type(text) ~= "string" then
+		return nil
+	end
+	local value = tonumber((string.gsub(text, ",", ".")))
+	if value == nil then
+		return nil
+	end
+	if value < MULTIPLIER_MIN then
+		value = MULTIPLIER_MIN
+	elseif value > MULTIPLIER_MAX then
+		value = MULTIPLIER_MAX
+	end
+	return math.floor(value * 10 + 0.5) / 10
+end
+
+local function ShowExactAmount(box, setting)
+	if box:HasFocus() then
+		return
+	end
+	box:SetText(ns.Price.FormatMultiplier(setting:GetValue()))
+end
+
+local function CommitExactAmount(box, setting)
+	local value = ParseMultiplier(box:GetText())
+	if value == nil then
+		box:SetText(ns.Price.FormatMultiplier(setting:GetValue()))
+		return
+	end
+	setting:SetValue(value)
+	box:SetText(ns.Price.FormatMultiplier(setting:GetValue()))
+end
+
+local function AttachExactInput(control)
+	local steppers = control.SliderWithSteppers
+	local box = control.TabuAucExactBox
+	if box == nil then
+		box = CreateFrame("EditBox", nil, control, "InputBoxTemplate")
+		box:SetSize(52, 18)
+		box:SetAutoFocus(false)
+		box:SetMaxLetters(6)
+		box:SetJustifyH("CENTER")
+		box:SetFontObject("GameFontHighlightSmall")
+		box:SetPoint("LEFT", steppers.Slider, "RIGHT", 22, 0)
+		box:SetScript("OnEnterPressed", function(self)
+			self:ClearFocus()
+		end)
+		box:SetScript("OnEscapePressed", function(self)
+			self.TabuAucRevert = true
+			self:ClearFocus()
+		end)
+		box:SetScript("OnEditFocusLost", function(self)
+			local setting = control:GetSetting()
+			if self.TabuAucRevert or ownedSettings[setting] == nil then
+				self.TabuAucRevert = nil
+				if setting ~= nil then
+					self:SetText(ns.Price.FormatMultiplier(setting:GetValue()))
+				end
+				return
+			end
+			CommitExactAmount(self, setting)
+		end)
+		control.TabuAucExactBox = box
+	end
+	box:Show()
+	steppers.RightText:Hide()
+	ShowExactAmount(box, control:GetSetting())
+end
+
+local function RefreshExactInput(control)
+	local box = control.TabuAucExactBox
+	local setting = control:GetSetting()
+	if box == nil or setting == nil or ownedSettings[setting] == nil then
+		if box ~= nil then
+			box:Hide()
+		end
+		return
+	end
+	control.SliderWithSteppers.RightText:Hide()
+	ShowExactAmount(box, setting)
+end
+
+local function HookExactInput()
+	if ns.Settings.ExactInputHooked or SettingsSliderControlMixin == nil then
+		return
+	end
+	ns.Settings.ExactInputHooked = true
+	hooksecurefunc(SettingsSliderControlMixin, "Init", function(control)
+		if ownedSettings[control:GetSetting()] == nil then
+			RefreshExactInput(control)
+			return
+		end
+		AttachExactInput(control)
+	end)
+	hooksecurefunc(SettingsSliderControlMixin, "OnSettingValueChanged", function(control)
+		RefreshExactInput(control)
+	end)
+end
+
 local function RegisterSliders(category)
 	for index = 1, #KEYS do
 		local key = KEYS[index]
@@ -91,6 +192,7 @@ local function RegisterSliders(category)
 			ns.L[LABEL[key]],
 			DEFAULT_MULTIPLIER
 		)
+		ownedSettings[setting] = true
 		local options = Settings.CreateSliderOptions(MULTIPLIER_MIN, MULTIPLIER_MAX, 0.1)
 		options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, function(value)
 			return ns.Price.FormatMultiplier(value)
@@ -109,7 +211,12 @@ local function RegisterCategory()
 	end
 	ns.Settings.CategoryRegistered = true
 	local category = Settings.RegisterVerticalLayoutCategory("tabu-auc-ext")
+	if CreateSettingsListSectionHeaderInitializer ~= nil then
+		local header = CreateSettingsListSectionHeaderInitializer(ns.L.MULTIPLIER_HEADING, ns.L.MULTIPLIER_TOOLTIP)
+		Settings.RegisterInitializer(category, header)
+	end
 	RegisterSliders(category)
+	HookExactInput()
 	Settings.RegisterAddOnCategory(category)
 end
 
