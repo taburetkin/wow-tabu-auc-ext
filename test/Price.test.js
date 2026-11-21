@@ -179,6 +179,6 @@ test("settings store seven multipliers and remembered prices", () => {
 	assert.match(settings, /function ns\.Settings\.Remember\(itemID, itemSuffix, amount, userEdited\)/);
 	assert.match(settings, /ns\.Price\.ShouldRemember\(userEdited\)/);
 	assert.equal(settings.includes("RegisterVerticalLayoutCategory"), true);
-	const registrations = settings.match(/RegisterAddOnCategory/g);
-	assert.equal(registrations.length, 2);
+	const registrations = settings.match(/Settings\.RegisterAddOnCategory\(/g);
+	assert.equal(registrations.length, 1);
 });
