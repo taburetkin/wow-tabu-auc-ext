@@ -25,6 +25,18 @@ local function Readable(value)
 	return value ~= nil and not issecretvalue(value)
 end
 
+local function UnitPriceAmount(sellFrame)
+	local priceInput = sellFrame.PriceInput
+	if priceInput == nil or priceInput.GetAmount == nil then
+		return nil
+	end
+	local amount = priceInput:GetAmount()
+	if not Readable(amount) or type(amount) ~= "number" then
+		return nil
+	end
+	return amount
+end
+
 local function SellFrames()
 	local frames = {}
 	if AuctionHouseFrame == nil then
@@ -82,16 +94,14 @@ local function VendorUnitPrice(sellFrame)
 end
 
 local function ForEachDigit(priceInput, action)
-	local displays = { priceInput.GoldDisplay, priceInput.SilverDisplay, priceInput.CopperDisplay }
-	local boxes = { priceInput.GoldBox, priceInput.SilverBox, priceInput.CopperBox }
+	local money = priceInput.MoneyInputFrame
+	if money == nil then
+		return
+	end
+	local boxes = { money.GoldBox, money.SilverBox, money.CopperBox }
 	for index = 1, 3 do
-		local display = displays[index]
-		if display ~= nil and display.Text ~= nil then
-			action(display.Text)
-		end
-		local box = boxes[index]
-		if box ~= nil then
-			action(box)
+		if boxes[index] ~= nil then
+			action(boxes[index])
 		end
 	end
 end
@@ -153,11 +163,20 @@ local function TrackSlotItem(sellFrame, slotItem)
 	PaintDigits(sellFrame.PriceInput, DEFAULT_COLOR)
 end
 
-local function CollectBuyouts(itemKey)
+local function SameLevelAndSuffix(rowKey, fresh)
+	if not Readable(rowKey) then
+		return false
+	end
+	return (rowKey.itemLevel or 0) == (fresh.itemLevel or 0)
+		and (rowKey.itemSuffix or 0) == (fresh.itemSuffix or 0)
+end
+
+local function CollectBuyouts(itemKey, fresh)
 	local amounts = {}
 	for index = 1, C_AuctionHouse.GetNumItemSearchResults(itemKey) do
 		local info = C_AuctionHouse.GetItemSearchResultInfo(itemKey, index)
-		if Readable(info) and Readable(info.buyoutAmount) and type(info.buyoutAmount) == "number" then
+		if Readable(info) and SameLevelAndSuffix(info.itemKey, fresh)
+			and Readable(info.buyoutAmount) and type(info.buyoutAmount) == "number" then
 			amounts[#amounts + 1] = info.buyoutAmount
 		end
 	end
@@ -183,8 +202,8 @@ local function OtherItemListingCount(sellFrame, itemID)
 end
 
 local function BlizzardUnitPrice(sellFrame)
-	local unitPrice = sellFrame:GetUnitPrice()
-	if Readable(unitPrice) and type(unitPrice) == "number" and unitPrice > 0 then
+	local unitPrice = UnitPriceAmount(sellFrame)
+	if unitPrice ~= nil and unitPrice > 0 then
 		return unitPrice
 	end
 	return nil
@@ -202,7 +221,7 @@ local function BuildQuery(sellFrame, fresh, classID)
 		local exactKey = ExactItemKey(fresh)
 		query.searchReady = C_AuctionHouse.HasFullItemSearchResults(exactKey)
 		if query.searchReady then
-			local amounts = CollectBuyouts(exactKey)
+			local amounts = CollectBuyouts(exactKey, fresh)
 			query.exactPrice = ns.Price.MinimumBuyout(amounts)
 		end
 		return query
@@ -240,7 +259,7 @@ local function RefreshPrice(sellFrame)
 	local classID = ItemClassID(fresh.itemID)
 	local applied = sellFrame.TabuAucApplied
 	if applied ~= nil and sellFrame.TabuAucShownItem == slotItem then
-		if sellFrame:GetUnitPrice() ~= applied.amount then
+		if UnitPriceAmount(sellFrame) ~= applied.amount then
 			ApplyChoice(sellFrame, applied, slotItem, classID)
 		end
 		return
@@ -283,7 +302,7 @@ local function QueryExactKey(sellFrame, fresh)
 		return
 	end
 	sellFrame.listDisplayedItemKey = exactKey
-	sellFrame:GetAuctionHouseFrame():QueryItem(sellFrame:GetSearchContext(), exactKey, true)
+	sellFrame:GetAuctionHouseFrame():QueryItem(sellFrame:GetSearchContext(), exactKey, false)
 end
 
 local function OnItemSet(sellFrame)
@@ -306,6 +325,19 @@ local function WatchBox(editBox, sellFrame)
 	editBox.TabuAucWatch = true
 	editBox:HookScript("OnTextChanged", function(_, userInput)
 		if userInput and not sellFrame.PriceInput.TabuAucApplying then
+			sellFrame.TabuAucUserEdited = true
+		end
+	end)
+end
+
+-- After our first apply, a SetAmount we did not make (a listing click) is the player's price.
+local function HookPlayerAmount(sellFrame)
+	local priceInput = sellFrame.PriceInput
+	if priceInput.SetAmount == nil then
+		return
+	end
+	hooksecurefunc(priceInput, "SetAmount", function()
+		if sellFrame.TabuAucApplied ~= nil and not priceInput.TabuAucApplying then
 			sellFrame.TabuAucUserEdited = true
 		end
 	end)
@@ -341,7 +373,7 @@ local function TakeSnapshot(sellFrame)
 	sellFrame.TabuAucSnapshot = {
 		itemID = key.itemID,
 		itemSuffix = key.itemSuffix,
-		amount = sellFrame:GetUnitPrice(),
+		amount = UnitPriceAmount(sellFrame),
 		userEdited = sellFrame.TabuAucUserEdited == true,
 	}
 end
@@ -354,11 +386,11 @@ local function HookSellFrame(sellFrame)
 	local priceInput = sellFrame.PriceInput
 	hooksecurefunc(sellFrame, "SetItem", OnItemSet)
 	sellFrame:HookScript("OnShow", ScheduleRefresh)
-	local boxes = { priceInput.GoldBox, priceInput.SilverBox, priceInput.CopperBox }
-	for index = 1, 3 do
-		WatchBox(boxes[index], sellFrame)
-		HookTooltip(boxes[index], priceInput)
-	end
+	HookPlayerAmount(sellFrame)
+	ForEachDigit(priceInput, function(box)
+		WatchBox(box, sellFrame)
+		HookTooltip(box, priceInput)
+	end)
 	HookTooltip(priceInput, priceInput)
 	if sellFrame.PostButton ~= nil then
 		sellFrame.PostButton:HookScript("PreClick", function()

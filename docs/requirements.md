@@ -1,7 +1,7 @@
 # tabu-auc-ext requirements
 
 - Project: `D:\dev\wow\forever\tabu-auc-ext`
-- Game copy: `F:\GAMES\World of Warcraft\_forever_\Interface\AddOns\tabu-auc-ext` — только `.toc`, `Core.lua` и `Locales`.
+- Game copy: `F:\GAMES\World of Warcraft\_forever_\Interface\AddOns\tabu-auc-ext` — только `.toc`, `Core.lua`, `Price.lua`, `Settings.lua`, `SellPrice.lua` и `Locales`.
 - Updated: 2026-11-22
 - Implementation matrix: `docs/implementation-matrix.md`
 - Original request: аддон `tabu-auc-ext` дописывает в окно продажи аукциона строку комиссии по формуле 5% от полной цены лота. Затем: определять, какой это аукцион, чтобы брать 5% или 15%.
@@ -42,7 +42,7 @@
 
 - Options discovery: native category `tabu-auc-ext` with seven multipliers (weapon, armor, consumable, reagent, recipe, bag, other), min 0, max 100, step 0.1, default 2. The category title stays `tabu-auc-ext` in every locale. Setting names stay English. The 5% and 15% house cut is still chosen by the auctioneer's faction.
 - Settings lifecycle: account-wide `SavedVariables` `TabuAucExtDB`. A stored `false` is kept. A missing or out-of-range multiplier becomes 2.
-- Locale architecture: `Locales/Base.lua`, затем `ruRU`, `frFR`, `deDE`, `esES`, `esMX`, `ptBR`, затем `Core.lua`. Неизвестная локаль остаётся на английском. esMX не подменяет esES: у каждой локали свой файл, даже когда подписи совпадают.
+- Locale architecture: `Locales/Base.lua`, затем `ruRU`, `frFR`, `deDE`, `esES`, `esMX`, `ptBR`, затем `Price.lua`, `Settings.lua`, `SellPrice.lua`, затем `Core.lua`. Неизвестная локаль остаётся на английском. esMX не подменяет esES: у каждой локали свой файл, даже когда подписи совпадают.
 - Translation coverage: enUS — `House cut`, `You receive` и `Notes`. ruRU — `Комиссия`, `На руки` и `Notes-ruRU`. frFR — `Commission`, `Vous recevez` и `Notes-frFR`. deDE — `Provision`, `Ihr erhaltet` и `Notes-deDE`. esES и esMX — `Comisión`, `Recibes` и соответствующие `Notes`. ptBR — `Comissão`, `Você recebe` и `Notes-ptBR`. Отдельной локали ptPT в клиенте нет. Формулировки кроме enUS и ruRU черновые, носителем и в клиенте не проверялись. Остальные локали остаются на английском.
 - Acceptance REQ IDs: REQ-006, REQ-007.
 

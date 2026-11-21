@@ -189,7 +189,11 @@ test("sell frame queries the real equipment key and colors the price", () => {
 	const toc = fs.readFileSync(path.join(root, "tabu-auc-ext.toc"), "utf8");
 	assert.match(toc, /SellPrice\.lua/);
 	assert.match(sell, /C_AuctionHouse\.MakeItemKey\(fresh\.itemID, fresh\.itemLevel, fresh\.itemSuffix, fresh\.battlePetSpeciesID\)/);
-	assert.match(sell, /QueryItem\(sellFrame:GetSearchContext\(\), exactKey, true\)/);
+	assert.match(sell, /QueryItem\(sellFrame:GetSearchContext\(\), exactKey, false\)/);
+	assert.equal(sell.includes("exactKey, true"), false);
+	assert.match(sell, /MoneyInputFrame/);
+	assert.match(sell, /GetAmount/);
+	assert.equal(sell.includes("GetUnitPrice"), false);
 	assert.match(sell, /HasFullItemSearchResults\(exactKey\)/);
 	assert.match(sell, /ns\.Price\.MinimumBuyout\(amounts\)/);
 	assert.match(sell, /ns\.Price\.Choose\(query\)/);
