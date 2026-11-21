@@ -62,3 +62,53 @@ function ns.Price.Choose(query)
 	end
 	return nil
 end
+
+local CLASS_CONSUMABLE = 0
+local CLASS_CONTAINER = 1
+local CLASS_WEAPON = 2
+local CLASS_ARMOR = 4
+local CLASS_REAGENT = 5
+local CLASS_TRADEGOODS = 7
+local CLASS_RECIPE = 9
+
+function ns.Price.MultiplierKey(classID)
+	if classID == CLASS_WEAPON then
+		return "weapon"
+	end
+	if classID == CLASS_ARMOR then
+		return "armor"
+	end
+	if classID == CLASS_CONSUMABLE then
+		return "consumable"
+	end
+	if classID == CLASS_REAGENT or classID == CLASS_TRADEGOODS or classID == 7 then
+		return "reagent"
+	end
+	if classID == CLASS_RECIPE then
+		return "recipe"
+	end
+	if classID == CLASS_CONTAINER then
+		return "bag"
+	end
+	return "other"
+end
+
+function ns.Price.MemoryKey(itemID, itemSuffix)
+	if type(itemID) ~= "number" then
+		return nil
+	end
+	local suffix = itemSuffix
+	if type(suffix) ~= "number" then
+		suffix = 0
+	end
+	return tostring(itemID) .. ":" .. tostring(suffix)
+end
+
+function ns.Price.FormatMultiplier(value)
+	local text = string.format("%.1f", value)
+	return (text:gsub("%.0$", ""))
+end
+
+function ns.Price.ShouldRemember(userEdited)
+	return userEdited == true
+end

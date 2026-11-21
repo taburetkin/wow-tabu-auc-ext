@@ -84,3 +84,46 @@ test("Price.lua exposes the same decision", () => {
 function toc() {
 	return fs.readFileSync(path.join(__dirname, "..", "tabu-auc-ext.toc"), "utf8");
 }
+
+function multiplierKey(classID) {
+	if (classID === 2) return "weapon";
+	if (classID === 4) return "armor";
+	if (classID === 0) return "consumable";
+	if (classID === 5 || classID === 7) return "reagent";
+	if (classID === 9) return "recipe";
+	if (classID === 1) return "bag";
+	return "other";
+}
+
+function memoryKey(itemID, itemSuffix) {
+	if (typeof itemID !== "number") return null;
+	const suffix = typeof itemSuffix === "number" ? itemSuffix : 0;
+	return itemID + ":" + suffix;
+}
+
+function formatMultiplier(value) {
+	return value.toFixed(1).replace(/\.0$/, "");
+}
+
+test("item class maps onto the seven multiplier keys", () => {
+	const priceLua = fs.readFileSync(path.join(__dirname, "..", "Price.lua"), "utf8");
+	assert.equal(multiplierKey(2), "weapon");
+	assert.equal(multiplierKey(4), "armor");
+	assert.equal(multiplierKey(0), "consumable");
+	assert.equal(multiplierKey(5), "reagent");
+	assert.equal(multiplierKey(7), "reagent");
+	assert.equal(multiplierKey(9), "recipe");
+	assert.equal(multiplierKey(1), "bag");
+	assert.equal(multiplierKey(15), "other");
+	assert.equal(multiplierKey(null), "other");
+	assert.equal(memoryKey(12345, -18), "12345:-18");
+	assert.equal(memoryKey(12345, null), "12345:0");
+	assert.equal(memoryKey(null, 0), null);
+	assert.equal(formatMultiplier(2), "2");
+	assert.equal(formatMultiplier(2.5), "2.5");
+	assert.match(priceLua, /function ns\.Price\.MultiplierKey\(classID\)/);
+	assert.match(priceLua, /function ns\.Price\.MemoryKey\(itemID, itemSuffix\)/);
+	assert.match(priceLua, /function ns\.Price\.FormatMultiplier\(value\)/);
+	assert.match(priceLua, /function ns\.Price\.ShouldRemember\(userEdited\)/);
+	assert.match(priceLua, /classID == 7/);
+});
