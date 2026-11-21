@@ -3,6 +3,7 @@ local _, ns = ...
 local FACTION_PERCENT = 5
 local NEUTRAL_PERCENT = 15
 local NEUTRAL_FACTION = "Neutral"
+local NEUTRAL_REACTION = 4
 local CUT_LAYOUT_INDEX = 64
 local RECEIVE_LAYOUT_INDEX = 65
 local FOOTER_INSET = 8
@@ -11,11 +12,22 @@ local AUCTION_HOUSE_UI = "Blizzard_AuctionHouseUI"
 
 local openFaction = nil
 
+local function HouseFaction(factionGroup, reaction)
+	if factionGroup == NEUTRAL_FACTION or factionGroup == "Alliance" or factionGroup == "Horde" then
+		return factionGroup
+	end
+	if type(reaction) == "number" and reaction >= NEUTRAL_REACTION then
+		return NEUTRAL_FACTION
+	end
+	return nil
+end
+
 local function CommissionRate(factionGroup)
-	if factionGroup == NEUTRAL_FACTION then
+	local house = HouseFaction(factionGroup, nil)
+	if house == NEUTRAL_FACTION then
 		return NEUTRAL_PERCENT
 	end
-	if factionGroup == "Alliance" or factionGroup == "Horde" then
+	if house == "Alliance" or house == "Horde" then
 		return FACTION_PERCENT
 	end
 	return nil
@@ -138,15 +150,41 @@ local function UnitPrice(sellFrame)
 	return sellFrame:GetUnitPrice()
 end
 
+local function Readable(value)
+	if issecretvalue(value) then
+		return false
+	end
+	return value ~= nil
+end
+
+local function FactionOf(unit)
+	if not UnitExists(unit) then
+		return nil
+	end
+	local player = UnitIsPlayer(unit)
+	if not issecretvalue(player) and player then
+		return nil
+	end
+	local faction = UnitFactionGroup(unit)
+	if not Readable(faction) then
+		faction = nil
+	end
+	local reaction = UnitReaction("player", unit)
+	if not Readable(reaction) then
+		reaction = nil
+	end
+	return HouseFaction(faction, reaction)
+end
+
 local function CurrentFaction()
-	if not UnitExists("npc") then
+	local fromNpc = FactionOf("npc")
+	if fromNpc ~= nil then
+		return fromNpc
+	end
+	if UnitExists("npc") then
 		return nil
 	end
-	local faction = UnitFactionGroup("npc")
-	if faction == nil or issecretvalue(faction) then
-		return nil
-	end
-	return faction
+	return FactionOf("target")
 end
 
 local function CaptureFaction()
@@ -539,6 +577,9 @@ local function HookOneSellFrame(frame)
 	PinSellFooter(frame)
 	hooksecurefunc(frame, "Layout", PinSellFooter)
 	hooksecurefunc(frame, "UpdateTotalPrice", OnTotalPriceUpdated)
+	frame:HookScript("OnShow", function()
+		ScheduleCut(frame)
+	end)
 end
 
 local function HookSellFrames()
@@ -572,6 +613,7 @@ local function OnEvent(_, event, name)
 	if event == "AUCTION_HOUSE_SHOW" then
 		HookSellFrames()
 		CaptureFaction()
+		RefreshVisibleSellFrames()
 		return
 	end
 	if event == "AUCTION_HOUSE_CLOSED" then

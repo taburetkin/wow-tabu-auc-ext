@@ -16,11 +16,22 @@ const ptBR = fs.readFileSync(path.join(addonRoot, "Locales", "ptBR.lua"), "utf8"
 const NEUTRAL_PERCENT = 15;
 const FACTION_PERCENT = 5;
 
+function houseFaction(factionGroup, reaction) {
+	if (factionGroup === "Neutral" || factionGroup === "Alliance" || factionGroup === "Horde") {
+		return factionGroup;
+	}
+	if (typeof reaction === "number" && reaction >= 4) {
+		return "Neutral";
+	}
+	return null;
+}
+
 function commissionRate(factionGroup) {
-	if (factionGroup === "Neutral") {
+	const house = houseFaction(factionGroup, null);
+	if (house === "Neutral") {
 		return NEUTRAL_PERCENT;
 	}
-	if (factionGroup === "Alliance" || factionGroup === "Horde") {
+	if (house === "Alliance" || house === "Horde") {
 		return FACTION_PERCENT;
 	}
 	return null;
@@ -107,11 +118,26 @@ test("neutral auctioneer is 15 percent and faction auctioneer is 5", () => {
 	assert.equal(commissionRate(null), null);
 	assert.equal(commissionRate(undefined), null);
 	assert.equal(commissionRate(""), null);
+	assert.equal(houseFaction(null, 4), "Neutral");
+	assert.equal(houseFaction(undefined, 4), "Neutral");
+	assert.equal(houseFaction("", 4), "Neutral");
+	assert.equal(houseFaction("Alliance", 4), "Alliance");
+	assert.equal(houseFaction("Horde", 5), "Horde");
+	assert.equal(houseFaction(null, 5), "Neutral");
+	assert.equal(houseFaction(null, 8), "Neutral");
+	assert.equal(houseFaction(null, 3), null);
+	assert.equal(houseFaction(null, null), null);
 	assert.match(lua, /local NEUTRAL_FACTION = "Neutral"/);
+	assert.match(lua, /local NEUTRAL_REACTION = 4/);
 	assert.match(lua, /local FACTION_PERCENT = 5/);
 	assert.match(lua, /local NEUTRAL_PERCENT = 15/);
-	assert.match(lua, /UnitFactionGroup\("npc"\)/);
-	assert.match(lua, /issecretvalue\(faction\)/);
+	assert.match(lua, /UnitFactionGroup\(unit\)/);
+	assert.match(lua, /UnitReaction\("player", unit\)/);
+	assert.match(lua, /return HouseFaction\(faction, reaction\)/);
+	assert.match(lua, /FactionOf\("npc"\)/);
+	assert.match(lua, /FactionOf\("target"\)/);
+	assert.match(lua, /reaction >= NEUTRAL_REACTION/);
+	assert.match(lua, /HookScript\("OnShow"/);
 });
 
 test("cut is quantity times unit price times the house percent", () => {
