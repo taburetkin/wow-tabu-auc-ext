@@ -31,6 +31,7 @@ test("unit price line matches the sell price line and defaults off", () => {
 	assert.match(toc, /## SavedVariables: TabuAucExtDB/);
 	assert.match(lua, /function ns\.UnitPrice\.ShouldShow\(query\)/);
 	assert.match(lua, /TabuAucExtDB\.showUnitPrice == true/);
+	assert.match(lua, /location:HasAnyLocation\(\)/);
 	assert.match(lua, /C_Item\.GetStackCount\(location\)/);
 	assert.match(lua, /C_Item\.GetItemMaxStackSize/);
 	assert.match(lua, /select\(11, C_Item\.GetItemInfo\(item\)\)/);

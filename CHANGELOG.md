@@ -1,5 +1,9 @@
 # tabu-auc-ext
 
+## 1.3.1
+
+- Selling an item to a vendor no longer reports an addon error when the unit price option is on. A buyback tooltip has no bag slot, so the unit price is skipped there.
+
 ## 1.3.0
 
 - A listing of this affix is purple. The cheapest listing of the same item, when this affix is absent, is blue. Vendor times 1.5 is red.

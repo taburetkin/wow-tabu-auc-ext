@@ -26,10 +26,20 @@ local function Readable(value)
 	return value ~= nil and not issecretvalue(value)
 end
 
+local function LocationIsValid(location)
+	if location == nil or type(location.HasAnyLocation) ~= "function" or not location:HasAnyLocation() then
+		return false
+	end
+	if type(location.IsValid) ~= "function" then
+		return false
+	end
+	return location:IsValid()
+end
+
 local function StackCount(tooltip, tooltipData)
 	if tooltipData.guid ~= nil and C_Item.GetItemLocation ~= nil and C_Item.GetStackCount ~= nil then
 		local location = C_Item.GetItemLocation(tooltipData.guid)
-		if location ~= nil and location:IsValid() then
+		if LocationIsValid(location) then
 			local count = C_Item.GetStackCount(location)
 			if Readable(count) and type(count) == "number" then
 				return count, location
