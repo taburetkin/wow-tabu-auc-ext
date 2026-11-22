@@ -15,3 +15,4 @@ ignore:
   - gallery-green.png
   - gallery-red.png
   - CHANGELOG.md
+  - info.txt

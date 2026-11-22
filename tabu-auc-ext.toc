@@ -19,6 +19,6 @@ Locales\esES.lua
 Locales\esMX.lua
 Locales\ptBR.lua
 Price.lua
-Settings.lua
 SellPrice.lua
+UnitPrice.lua
 Core.lua

@@ -11,6 +11,7 @@
 | Испанские и португальская подписи | REQ-007 | `Locales/esES.lua`, `Locales/esMX.lua`, `Locales/ptBR.lua`, `tabu-auc-ext.toc` | implemented | `node --test test/Core.test.js`. В клиентах esES, esMX и ptBR не запускалось. Перевод черновой. |
 | Две строки под штатным итогом | REQ-003, REQ-008, REQ-011 | `Core.lua` | implemented | `node --test test/Core.test.js`. В клиенте после правки не запускалось. |
 | Нейтральный гоблин без тега фракции | REQ-004, REQ-005 | `Core.lua` | implemented | `node --test test/Core.test.js`. В клиенте после правки не переоткрывалось. |
+| Цена за штуку в подсказке | REQ-012 | `UnitPrice.lua`, `Locales`, `tabu-auc-ext.toc` | implemented | `node --test test/UnitPrice.test.js`. В клиенте не открывалось. |
 
 ## Checkpoint
 

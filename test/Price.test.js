@@ -4,41 +4,55 @@ const path = require("node:path");
 const test = require("node:test");
 
 const lua = fs.readFileSync(path.join(__dirname, "..", "Price.lua"), "utf8");
+const COPPER_PER_SILVER = 100;
 
 function positive(value) {
 	return typeof value === "number" && value > 0;
 }
 
-function present(value) {
-	return typeof value === "number" && value >= 0;
+function suggested(query) {
+	if (typeof query.suggestedPrice !== "number") {
+		return null;
+	}
+	return { amount: query.suggestedPrice, source: "suggested" };
 }
 
 function choose(query) {
-	if (!query.searchReady) {
-		return null;
-	}
-	if (query.equipment) {
+	if (query.equipment === true) {
+		if (query.exactReady !== true) {
+			return null;
+		}
 		if (positive(query.exactPrice)) {
 			return { amount: query.exactPrice, source: "exact" };
 		}
-		if (present(query.rememberedPrice)) {
-			return { amount: query.rememberedPrice, source: "remembered" };
+		if (query.typeReady !== true) {
+			return null;
 		}
-		if (present(query.vendorPrice)) {
-			return { amount: Math.floor(query.vendorPrice * query.multiplier), source: "multiplier" };
+		if (positive(query.typePrice)) {
+			return { amount: query.typePrice, source: "type" };
 		}
+		return suggested(query);
+	}
+	if (query.searchReady !== true) {
 		return null;
 	}
 	if (positive(query.blizzardPrice)) {
 		return { amount: query.blizzardPrice, source: "blizzard" };
 	}
-	if (present(query.rememberedPrice)) {
-		return { amount: query.rememberedPrice, source: "remembered" };
+	return suggested(query);
+}
+
+// AuctionHouseSellFrameMixin:GetDefaultPrice adds one silver even when the price is already on a silver boundary.
+function defaultCopper(vendorPrice) {
+	let price = COPPER_PER_SILVER;
+	if (typeof vendorPrice === "number") {
+		price = vendorPrice * 1.5;
 	}
-	if (present(query.vendorPrice)) {
-		return { amount: Math.floor(query.vendorPrice * query.multiplier), source: "multiplier" };
+	price = price + (COPPER_PER_SILVER - (price % COPPER_PER_SILVER));
+	if (price < COPPER_PER_SILVER) {
+		return COPPER_PER_SILVER;
 	}
-	return null;
+	return price;
 }
 
 function minimumBuyout(amounts) {
@@ -51,21 +65,40 @@ function minimumBuyout(amounts) {
 	return best;
 }
 
-test("equipment uses the exact buyout, then memory, then vendor times multiplier", () => {
-	const ready = { equipment: true, searchReady: true, multiplier: 2, vendorPrice: 150, rememberedPrice: 400, exactPrice: 900, blizzardPrice: 100 };
+test("equipment uses the affix buyout, then the default item minimum, then the auction suggestion", () => {
+	const ready = {
+		equipment: true,
+		exactReady: true,
+		typeReady: true,
+		exactPrice: 900,
+		typePrice: 400,
+		suggestedPrice: 200,
+	};
 	assert.deepEqual(choose(ready), { amount: 900, source: "exact" });
-	assert.deepEqual(choose({ ...ready, exactPrice: null }), { amount: 400, source: "remembered" });
-	assert.deepEqual(choose({ ...ready, exactPrice: null, rememberedPrice: 0 }), { amount: 0, source: "remembered" });
-	assert.deepEqual(choose({ ...ready, exactPrice: null, rememberedPrice: null }), { amount: 300, source: "multiplier" });
-	assert.equal(choose({ ...ready, searchReady: false }), null);
-	assert.equal(choose({ ...ready, exactPrice: null, rememberedPrice: null, vendorPrice: null }), null);
+	assert.deepEqual(choose({ ...ready, exactPrice: null }), { amount: 400, source: "type" });
+	assert.deepEqual(choose({ ...ready, exactPrice: 0, typePrice: null }), { amount: 200, source: "suggested" });
+	assert.equal(choose({ ...ready, exactReady: false }), null);
+	assert.equal(choose({ ...ready, exactPrice: null, typeReady: false }), null);
+	assert.equal(choose({ ...ready, exactPrice: null, typePrice: null, suggestedPrice: null }), null);
 });
 
-test("other items use Blizzard, then memory, then vendor times multiplier", () => {
-	const ready = { equipment: false, searchReady: true, multiplier: 2, vendorPrice: 50, rememberedPrice: 80, blizzardPrice: 120 };
+test("other items use the auction listing, then the auction suggestion", () => {
+	const ready = { equipment: false, searchReady: true, blizzardPrice: 120, suggestedPrice: 200 };
 	assert.deepEqual(choose(ready), { amount: 120, source: "blizzard" });
-	assert.deepEqual(choose({ ...ready, blizzardPrice: 0 }), { amount: 80, source: "remembered" });
-	assert.deepEqual(choose({ ...ready, blizzardPrice: null, rememberedPrice: null }), { amount: 100, source: "multiplier" });
+	assert.deepEqual(choose({ ...ready, blizzardPrice: 0 }), { amount: 200, source: "suggested" });
+	assert.equal(choose({ ...ready, searchReady: false }), null);
+	assert.equal(choose({ ...ready, blizzardPrice: null, suggestedPrice: null }), null);
+});
+
+test("default auction price is vendor times 1.5, rounded up to the next silver", () => {
+	assert.equal(defaultCopper(0), 100);
+	assert.equal(defaultCopper(100), 200);
+	assert.equal(defaultCopper(150), 300);
+	assert.equal(defaultCopper(200), 400);
+	assert.equal(defaultCopper(50), 100);
+	assert.match(lua, /function ns\.Price\.DefaultCopper\(vendorPrice\)/);
+	assert.match(lua, /local DEFAULT_AUCTION_PRICE_MULTIPLIER = 1\.5/);
+	assert.match(lua, /price \+ \(COPPER_PER_SILVER - \(price % COPPER_PER_SILVER\)\)/);
 });
 
 test("minimum buyout ignores missing and non-positive rows", () => {
@@ -76,59 +109,20 @@ test("minimum buyout ignores missing and non-positive rows", () => {
 test("Price.lua exposes the same decision", () => {
 	assert.match(lua, /function ns\.Price\.Choose\(query\)/);
 	assert.match(lua, /function ns\.Price\.MinimumBuyout\(amounts\)/);
-	assert.match(lua, /function ns\.Price\.FallbackCopper\(vendorPrice, multiplier\)/);
-	assert.match(lua, /return math\.floor\(vendorPrice \* multiplier\)/);
+	assert.match(lua, /ns\.Price\.TYPE/);
+	assert.match(lua, /ns\.Price\.SUGGESTED/);
+	assert.equal(lua.includes("FallbackCopper"), false);
+	assert.equal(lua.includes("MultiplierKey"), false);
+	assert.equal(lua.includes("MemoryKey"), false);
 	assert.match(toc(), /Price\.lua/);
+	assert.equal(toc().includes("Settings.lua"), false);
 });
 
 function toc() {
 	return fs.readFileSync(path.join(__dirname, "..", "tabu-auc-ext.toc"), "utf8");
 }
 
-function multiplierKey(classID) {
-	if (classID === 2) return "weapon";
-	if (classID === 4) return "armor";
-	if (classID === 0) return "consumable";
-	if (classID === 5 || classID === 7) return "reagent";
-	if (classID === 9) return "recipe";
-	if (classID === 1) return "bag";
-	return "other";
-}
-
-function memoryKey(itemID, itemSuffix) {
-	if (typeof itemID !== "number") return null;
-	const suffix = typeof itemSuffix === "number" ? itemSuffix : 0;
-	return itemID + ":" + suffix;
-}
-
-function formatMultiplier(value) {
-	return value.toFixed(1).replace(/\.0$/, "");
-}
-
-test("item class maps onto the seven multiplier keys", () => {
-	const priceLua = fs.readFileSync(path.join(__dirname, "..", "Price.lua"), "utf8");
-	assert.equal(multiplierKey(2), "weapon");
-	assert.equal(multiplierKey(4), "armor");
-	assert.equal(multiplierKey(0), "consumable");
-	assert.equal(multiplierKey(5), "reagent");
-	assert.equal(multiplierKey(7), "reagent");
-	assert.equal(multiplierKey(9), "recipe");
-	assert.equal(multiplierKey(1), "bag");
-	assert.equal(multiplierKey(15), "other");
-	assert.equal(multiplierKey(null), "other");
-	assert.equal(memoryKey(12345, -18), "12345:-18");
-	assert.equal(memoryKey(12345, null), "12345:0");
-	assert.equal(memoryKey(null, 0), null);
-	assert.equal(formatMultiplier(2), "2");
-	assert.equal(formatMultiplier(2.5), "2.5");
-	assert.match(priceLua, /function ns\.Price\.MultiplierKey\(classID\)/);
-	assert.match(priceLua, /function ns\.Price\.MemoryKey\(itemID, itemSuffix\)/);
-	assert.match(priceLua, /function ns\.Price\.FormatMultiplier\(value\)/);
-	assert.match(priceLua, /function ns\.Price\.ShouldRemember\(userEdited\)/);
-	assert.match(priceLua, /classID == 7/);
-});
-
-test("price sources and multiplier labels are localized", () => {
+test("price sources are localized", () => {
 	const root = path.join(__dirname, "..");
 	const base = fs.readFileSync(path.join(root, "Locales", "Base.lua"), "utf8");
 	const ru = fs.readFileSync(path.join(root, "Locales", "ruRU.lua"), "utf8");
@@ -139,78 +133,51 @@ test("price sources and multiplier labels are localized", () => {
 	const pt = fs.readFileSync(path.join(root, "Locales", "ptBR.lua"), "utf8");
 	assert.match(base, /PRICE_BLIZZARD = "Auction house minimum\."/);
 	assert.match(base, /PRICE_EXACT = "Lowest price for this affix\."/);
-	assert.match(base, /PRICE_REMEMBERED = "Last price you entered for this item\."/);
-	assert.match(base, /PRICE_MULTIPLIER = "Vendor price × %s \(%s\)\."/);
-	assert.match(base, /TYPE_WEAPON = "Weapons"/);
-	assert.match(base, /TYPE_ARMOR = "Armor"/);
-	assert.match(base, /TYPE_CONSUMABLE = "Consumables"/);
-	assert.match(base, /TYPE_REAGENT = "Reagents"/);
-	assert.match(base, /TYPE_RECIPE = "Recipes"/);
-	assert.match(base, /TYPE_BAG = "Bags"/);
-	assert.match(base, /TYPE_OTHER = "Other"/);
-	assert.match(base, /MULTIPLIER_HEADING = "Vendor price multiplier\. 2 is double\."/);
+	assert.match(base, /PRICE_TYPE = "No listings for this affix, so this is the default minimum for this item\."/);
+	assert.match(base, /PRICE_SUGGESTED = "This item is not listed\. The auction house suggests its own minimum\."/);
+	assert.equal(base.includes("PRICE_REMEMBERED"), false);
+	assert.equal(base.includes("PRICE_MULTIPLIER"), false);
 	assert.match(ru, /PRICE_BLIZZARD = "Минимум аукциона\."/);
 	assert.match(ru, /PRICE_EXACT = "Минимальная цена этого аффикса\."/);
-	assert.match(ru, /PRICE_REMEMBERED = "Последняя цена, которую вы ввели для этого предмета\."/);
-	assert.match(ru, /PRICE_MULTIPLIER = "Цена торговцу × %s \(%s\)\."/);
-	assert.match(ru, /TYPE_WEAPON = "Оружие"/);
-	assert.match(ru, /TYPE_REAGENT = "Реагенты"/);
-	assert.match(ru, /TYPE_OTHER = "Прочее"/);
-	assert.match(ru, /MULTIPLIER_HEADING = "Множитель цены торговцу\. 2 — двойная цена\."/);
+	assert.match(ru, /PRICE_TYPE = "Лотов этого аффикса нет, поэтому это минимум по умолчанию для этого предмета\."/);
+	assert.match(ru, /PRICE_SUGGESTED = "Этого предмета нет в продаже\. Аукцион подставляет свой минимум\."/);
 	for (const file of [fr, de, es, mx, pt]) {
 		assert.match(file, /PRICE_BLIZZARD = "/);
-		assert.match(file, /TYPE_WEAPON = "/);
-		assert.match(file, /TYPE_OTHER = "/);
-		assert.match(file, /MULTIPLIER_HEADING = "/);
+		assert.match(file, /PRICE_TYPE = "/);
+		assert.match(file, /PRICE_SUGGESTED = "/);
+		assert.equal(file.includes("TYPE_WEAPON"), false);
+		assert.equal(file.includes("MULTIPLIER_HEADING"), false);
 	}
+	assert.equal(fs.existsSync(path.join(root, "Settings.lua")), false);
 });
 
-test("settings store seven multipliers and remembered prices", () => {
-	const root = path.join(__dirname, "..");
-	const settings = fs.readFileSync(path.join(root, "Settings.lua"), "utf8");
-	const toc = fs.readFileSync(path.join(root, "tabu-auc-ext.toc"), "utf8");
-	assert.match(toc, /## SavedVariables: TabuAucExtDB/);
-	assert.match(toc, /Settings\.lua/);
-	assert.match(settings, /local DEFAULT_MULTIPLIER = 2/);
-	assert.match(settings, /local MULTIPLIER_MIN = 0/);
-	assert.match(settings, /local MULTIPLIER_MAX = 100/);
-	assert.match(settings, /Settings\.RegisterVerticalLayoutCategory\("tabu-auc-ext"\)/);
-	assert.match(settings, /Settings\.RegisterAddOnCategory\(category\)/);
-	assert.match(settings, /Settings\.CreateSliderOptions\(MULTIPLIER_MIN, MULTIPLIER_MAX, 0\.1\)/);
-	assert.match(settings, /CreateSettingsListSectionHeaderInitializer\(ns\.L\.MULTIPLIER_HEADING/);
-	assert.match(settings, /CreateFrame\("EditBox"/);
-	assert.match(settings, /function ns\.Settings\.Multiplier\(classID\)/);
-	assert.match(settings, /function ns\.Settings\.Remembered\(itemID, itemSuffix\)/);
-	assert.match(settings, /function ns\.Settings\.Remember\(itemID, itemSuffix, amount, userEdited\)/);
-	assert.match(settings, /ns\.Price\.ShouldRemember\(userEdited\)/);
-	assert.equal(settings.includes("RegisterVerticalLayoutCategory"), true);
-	const registrations = settings.match(/Settings\.RegisterAddOnCategory\(/g);
-	assert.equal(registrations.length, 1);
-});
-
-test("sell frame queries the real equipment key and colors the price", () => {
+test("sell frame prices from the auction's own search", () => {
 	const root = path.join(__dirname, "..");
 	const sell = fs.readFileSync(path.join(root, "SellPrice.lua"), "utf8");
-	const toc = fs.readFileSync(path.join(root, "tabu-auc-ext.toc"), "utf8");
-	assert.match(toc, /SellPrice\.lua/);
-	assert.match(sell, /C_AuctionHouse\.MakeItemKey\(fresh\.itemID, fresh\.itemLevel, fresh\.itemSuffix, fresh\.battlePetSpeciesID\)/);
-	assert.match(sell, /QueryItem\(sellFrame:GetSearchContext\(\), exactKey, false\)/);
-	assert.equal(sell.includes("exactKey, true"), false);
+	const tocText = fs.readFileSync(path.join(root, "tabu-auc-ext.toc"), "utf8");
+	assert.match(tocText, /SellPrice\.lua/);
+	assert.equal(sell.includes("QueryItem"), false);
+	assert.equal(sell.includes("listDisplayedItemKey ="), false);
+	assert.match(sell, /HasFullItemSearchResults\(itemKey\)/);
+	assert.match(sell, /sellFrame\.listDisplayedItemKey/);
 	assert.match(sell, /MoneyInputFrame/);
 	assert.match(sell, /GetAmount/);
 	assert.equal(sell.includes("GetUnitPrice"), false);
-	assert.match(sell, /HasFullItemSearchResults\(exactKey\)/);
-	assert.match(sell, /ns\.Price\.MinimumBuyout\(amounts\)/);
+	assert.match(sell, /ns\.Price\.MinimumBuyout\(CollectBuyouts/);
 	assert.match(sell, /ns\.Price\.Choose\(query\)/);
+	assert.match(sell, /ns\.Price\.DefaultCopper\(vendorPrice\)/);
+	assert.match(sell, /ShouldAutoPopulatePrice/);
 	assert.match(sell, /userInput/);
-	assert.match(sell, /PreClick/);
-	assert.match(sell, /AUCTION_HOUSE_AUCTION_CREATED/);
-	assert.match(sell, /ns\.Settings\.Remember\(snapshot\.itemID, snapshot\.itemSuffix, snapshot\.amount, snapshot\.userEdited\)/);
-	assert.match(sell, /0\.2, 0\.6, 1/);
-	assert.match(sell, /0\.64, 0\.21, 0\.93/);
-	assert.match(sell, /1, 0\.5, 0/);
+	assert.equal(sell.includes("PreClick"), false);
+	assert.equal(sell.includes("AUCTION_HOUSE_AUCTION_CREATED"), false);
+	assert.equal(sell.includes("ns.Settings"), false);
+	assert.match(sell, /\[ns\.Price\.EXACT\] = \{ 0\.64, 0\.21, 0\.93 \}/);
+	assert.match(sell, /\[ns\.Price\.TYPE\] = \{ 0\.2, 0\.6, 1 \}/);
+	assert.match(sell, /\[ns\.Price\.SUGGESTED\] = \{ 1, 0\.1, 0\.1 \}/);
+	assert.equal(sell.includes("1, 0.82, 0.2"), false);
+	assert.equal(sell.includes("1, 0.5, 0"), false);
 	assert.equal(sell.includes("totalPrice:Set"), false);
-	const refresh = sell.slice(sell.indexOf("local function RefreshShownFrames"), sell.indexOf("local function QueryExactKey"));
+	const refresh = sell.slice(sell.indexOf("local function RefreshShownFrames"), sell.indexOf("local function OnItemSet"));
 	const schedule = sell.slice(sell.indexOf("local function ScheduleRefresh"), sell.indexOf("local function RefreshShownFrames"));
 	assert.match(refresh, /SellFrameVisible\(frames\[index\]\)/);
 	assert.match(schedule, /SellFrameVisible\(sellFrame\)/);

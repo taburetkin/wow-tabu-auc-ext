@@ -1,5 +1,12 @@
 # tabu-auc-ext
 
+## 1.3.0
+
+- A listing of this affix is purple. The cheapest listing of the same item, when this affix is absent, is blue. Vendor times 1.5 is red.
+- Item tooltips can show a unit vendor price, drawn like Sell Price, when the stack is larger than one. The option is off until turned on in the tabu-auc-ext category.
+- An item with no listings at all takes the auction house's suggested price: vendor price times 1.5, rounded up to the next silver. The digits are red, and the tooltip says the item is not listed.
+- The multiplier options and remembered prices are gone.
+
 ## 1.2.1
 
 - Using an item outside the auction house no longer reports an addon error. The sell price updates only while the auction window is open.

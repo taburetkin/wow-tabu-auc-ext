@@ -7,9 +7,9 @@ local ITEM_CLASS_INDEX = 6
 
 local SOURCE_COLOR = {
 	[ns.Price.BLIZZARD] = { 1, 1, 1 },
-	[ns.Price.EXACT] = { 0.2, 0.6, 1 },
-	[ns.Price.REMEMBERED] = { 0.64, 0.21, 0.93 },
-	[ns.Price.MULTIPLIER] = { 1, 0.5, 0 },
+	[ns.Price.EXACT] = { 0.64, 0.21, 0.93 },
+	[ns.Price.TYPE] = { 0.2, 0.6, 1 },
+	[ns.Price.SUGGESTED] = { 1, 0.1, 0.1 },
 }
 local DEFAULT_COLOR = { 1, 1, 1 }
 
@@ -63,20 +63,6 @@ local function FreshItemKey(sellFrame)
 	return fresh
 end
 
-local function ExactItemKey(fresh)
-	return C_AuctionHouse.MakeItemKey(fresh.itemID, fresh.itemLevel, fresh.itemSuffix, fresh.battlePetSpeciesID)
-end
-
-local function SameItemKey(left, right)
-	if not Readable(left) or not Readable(right) then
-		return false
-	end
-	return left.itemID == right.itemID
-		and left.itemLevel == right.itemLevel
-		and left.itemSuffix == right.itemSuffix
-		and left.battlePetSpeciesID == right.battlePetSpeciesID
-end
-
 local function VendorUnitPrice(sellFrame)
 	local item = sellFrame:GetItem()
 	if item == nil or not item:IsValid() then
@@ -87,10 +73,10 @@ local function VendorUnitPrice(sellFrame)
 		return nil
 	end
 	local sellPrice = select(11, C_Item.GetItemInfo(itemLink))
-	if not Readable(sellPrice) then
-		return nil
+	if not Readable(sellPrice) or type(sellPrice) ~= "number" then
+		return nil, false
 	end
-	return sellPrice
+	return sellPrice, true
 end
 
 local function ForEachDigit(priceInput, action)
@@ -112,19 +98,20 @@ local function PaintDigits(priceInput, color)
 	end)
 end
 
-local function TooltipText(choice, classID)
+local function TooltipText(choice)
 	if choice.source == ns.Price.BLIZZARD then
 		return ns.L.PRICE_BLIZZARD
 	end
 	if choice.source == ns.Price.EXACT then
 		return ns.L.PRICE_EXACT
 	end
-	if choice.source == ns.Price.REMEMBERED then
-		return ns.L.PRICE_REMEMBERED
+	if choice.source == ns.Price.TYPE then
+		return ns.L.PRICE_TYPE
 	end
-	local typeKey = ns.Price.MultiplierKey(classID)
-	local typeLabel = ns.L["TYPE_" .. string.upper(typeKey)]
-	return string.format(ns.L.PRICE_MULTIPLIER, ns.Price.FormatMultiplier(ns.Settings.Multiplier(classID)), typeLabel)
+	if choice.source == ns.Price.SUGGESTED then
+		return ns.L.PRICE_SUGGESTED
+	end
+	return nil
 end
 
 local function ShowTooltip(priceInput)
@@ -171,16 +158,46 @@ local function SameLevelAndSuffix(rowKey, fresh)
 		and (rowKey.itemSuffix or 0) == (fresh.itemSuffix or 0)
 end
 
-local function CollectBuyouts(itemKey, fresh)
+local function CollectBuyouts(itemKey, includeRow)
 	local amounts = {}
 	for index = 1, C_AuctionHouse.GetNumItemSearchResults(itemKey) do
 		local info = C_AuctionHouse.GetItemSearchResultInfo(itemKey, index)
-		if Readable(info) and SameLevelAndSuffix(info.itemKey, fresh)
+		if Readable(info) and includeRow(info)
 			and Readable(info.buyoutAmount) and type(info.buyoutAmount) == "number" then
 			amounts[#amounts + 1] = info.buyoutAmount
 		end
 	end
 	return amounts
+end
+
+-- GetBestEntry ignores item level for uncommon gear and pets. Other gear uses the same item level, any affix.
+local function IgnoreItemLevel(sellFrame, fresh)
+	if (fresh.battlePetSpeciesID or 0) ~= 0 then
+		return true
+	end
+	local item = sellFrame:GetItem()
+	if item == nil or C_Item.GetItemQuality == nil then
+		return false
+	end
+	local quality = C_Item.GetItemQuality(item)
+	if not Readable(quality) then
+		return false
+	end
+	local uncommon = 2
+	if Enum ~= nil and Enum.ItemQuality ~= nil and Enum.ItemQuality.Uncommon ~= nil then
+		uncommon = Enum.ItemQuality.Uncommon
+	end
+	return quality == uncommon
+end
+
+local function SuggestedPrice(vendorPrice, vendorReady)
+	if vendorReady ~= true then
+		return nil
+	end
+	if C_AuctionHouse.ShouldAutoPopulatePrice ~= nil and not C_AuctionHouse.ShouldAutoPopulatePrice() then
+		return nil
+	end
+	return ns.Price.DefaultCopper(vendorPrice)
 end
 
 local function OtherItemSearchReady(sellFrame, itemID)
@@ -211,18 +228,28 @@ end
 
 local function BuildQuery(sellFrame, fresh, classID)
 	local equipment = IsEquipment(classID)
+	local vendorPrice, vendorReady = VendorUnitPrice(sellFrame)
 	local query = {
 		equipment = equipment,
-		multiplier = ns.Settings.Multiplier(classID),
-		rememberedPrice = ns.Settings.Remembered(fresh.itemID, fresh.itemSuffix),
-		vendorPrice = VendorUnitPrice(sellFrame),
+		suggestedPrice = SuggestedPrice(vendorPrice, vendorReady),
 	}
 	if equipment then
-		local exactKey = ExactItemKey(fresh)
-		query.searchReady = C_AuctionHouse.HasFullItemSearchResults(exactKey)
-		if query.searchReady then
-			local amounts = CollectBuyouts(exactKey, fresh)
-			query.exactPrice = ns.Price.MinimumBuyout(amounts)
+		-- The sell frame already searches this item with any affix. A second query replaces that search and leaves the list on Searching.
+		local itemKey = sellFrame.listDisplayedItemKey
+		local ready = Readable(itemKey) and C_AuctionHouse.HasFullItemSearchResults(itemKey)
+		query.exactReady = ready
+		query.typeReady = ready
+		if ready then
+			query.exactPrice = ns.Price.MinimumBuyout(CollectBuyouts(itemKey, function(info)
+				return SameLevelAndSuffix(info.itemKey, fresh)
+			end))
+			local ignoreLevel = IgnoreItemLevel(sellFrame, fresh)
+			query.typePrice = ns.Price.MinimumBuyout(CollectBuyouts(itemKey, function(info)
+				if ignoreLevel then
+					return true
+				end
+				return Readable(info.itemKey) and (info.itemKey.itemLevel or 0) == (fresh.itemLevel or 0)
+			end))
 		end
 		return query
 	end
@@ -233,7 +260,7 @@ local function BuildQuery(sellFrame, fresh, classID)
 	return query
 end
 
-local function ApplyChoice(sellFrame, choice, slotItem, classID)
+local function ApplyChoice(sellFrame, choice, slotItem)
 	local priceInput = sellFrame.PriceInput
 	priceInput.TabuAucApplying = true
 	priceInput:SetAmount(choice.amount)
@@ -242,7 +269,7 @@ local function ApplyChoice(sellFrame, choice, slotItem, classID)
 	sellFrame.TabuAucApplied = { amount = choice.amount, source = choice.source }
 	sellFrame.TabuAucShownSource = choice.source
 	PaintDigits(priceInput, SOURCE_COLOR[choice.source] or DEFAULT_COLOR)
-	priceInput.TabuAucTooltip = TooltipText(choice, classID)
+	priceInput.TabuAucTooltip = TooltipText(choice)
 end
 
 local function RefreshPrice(sellFrame)
@@ -260,7 +287,7 @@ local function RefreshPrice(sellFrame)
 	local applied = sellFrame.TabuAucApplied
 	if applied ~= nil and sellFrame.TabuAucShownItem == slotItem then
 		if UnitPriceAmount(sellFrame) ~= applied.amount then
-			ApplyChoice(sellFrame, applied, slotItem, classID)
+			ApplyChoice(sellFrame, applied, slotItem)
 		end
 		return
 	end
@@ -269,7 +296,7 @@ local function RefreshPrice(sellFrame)
 	if choice == nil then
 		return
 	end
-	ApplyChoice(sellFrame, choice, slotItem, classID)
+	ApplyChoice(sellFrame, choice, slotItem)
 end
 
 -- IsShown stays true after the auction house hides this frame's parent.
@@ -301,15 +328,6 @@ local function RefreshShownFrames()
 	end
 end
 
-local function QueryExactKey(sellFrame, fresh)
-	local exactKey = ExactItemKey(fresh)
-	if SameItemKey(sellFrame.listDisplayedItemKey, exactKey) then
-		return
-	end
-	sellFrame.listDisplayedItemKey = exactKey
-	sellFrame:GetAuctionHouseFrame():QueryItem(sellFrame:GetSearchContext(), exactKey, false)
-end
-
 local function OnItemSet(sellFrame)
 	local fresh = FreshItemKey(sellFrame)
 	if fresh == nil then
@@ -317,9 +335,6 @@ local function OnItemSet(sellFrame)
 		return
 	end
 	TrackSlotItem(sellFrame, SlotItemKey(fresh))
-	if IsEquipment(ItemClassID(fresh.itemID)) then
-		QueryExactKey(sellFrame, fresh)
-	end
 	ScheduleRefresh(sellFrame)
 end
 
@@ -359,30 +374,6 @@ local function HookTooltip(widget, priceInput)
 	widget:HookScript("OnLeave", GameTooltip_Hide)
 end
 
-local function ClearOtherSnapshots(except)
-	local frames = SellFrames()
-	for index = 1, #frames do
-		if frames[index] ~= except then
-			frames[index].TabuAucSnapshot = nil
-		end
-	end
-end
-
-local function TakeSnapshot(sellFrame)
-	ClearOtherSnapshots(sellFrame)
-	local key = FreshItemKey(sellFrame)
-	if key == nil then
-		sellFrame.TabuAucSnapshot = nil
-		return
-	end
-	sellFrame.TabuAucSnapshot = {
-		itemID = key.itemID,
-		itemSuffix = key.itemSuffix,
-		amount = UnitPriceAmount(sellFrame),
-		userEdited = sellFrame.TabuAucUserEdited == true,
-	}
-end
-
 local function HookSellFrame(sellFrame)
 	if sellFrame == nil or sellFrame.TabuAucPriceHooked or sellFrame.PriceInput == nil then
 		return
@@ -397,11 +388,6 @@ local function HookSellFrame(sellFrame)
 		HookTooltip(box, priceInput)
 	end)
 	HookTooltip(priceInput, priceInput)
-	if sellFrame.PostButton ~= nil then
-		sellFrame.PostButton:HookScript("PreClick", function()
-			TakeSnapshot(sellFrame)
-		end)
-	end
 end
 
 local function HookSellFrames()
@@ -409,22 +395,6 @@ local function HookSellFrames()
 	for index = 1, #frames do
 		HookSellFrame(frames[index])
 	end
-end
-
-local function RememberCreatedPosts()
-	local frames = SellFrames()
-	for index = 1, #frames do
-		local sellFrame = frames[index]
-		local snapshot = sellFrame.TabuAucSnapshot
-		if snapshot ~= nil then
-			sellFrame.TabuAucSnapshot = nil
-			ns.Settings.Remember(snapshot.itemID, snapshot.itemSuffix, snapshot.amount, snapshot.userEdited)
-		end
-	end
-end
-
-local function DropSnapshots()
-	ClearOtherSnapshots(nil)
 end
 
 local function OnEvent(_, event, name)
@@ -439,22 +409,12 @@ local function OnEvent(_, event, name)
 		RefreshShownFrames()
 		return
 	end
-	if event == "AUCTION_HOUSE_CLOSED" then
-		DropSnapshots()
-		return
-	end
-	if event == "AUCTION_HOUSE_AUCTION_CREATED" then
-		RememberCreatedPosts()
-		return
-	end
 	RefreshShownFrames()
 end
 
 local listener = CreateFrame("Frame")
 listener:RegisterEvent("ADDON_LOADED")
 listener:RegisterEvent("AUCTION_HOUSE_SHOW")
-listener:RegisterEvent("AUCTION_HOUSE_CLOSED")
-listener:RegisterEvent("AUCTION_HOUSE_AUCTION_CREATED")
 listener:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 listener:RegisterEvent("ITEM_SEARCH_RESULTS_UPDATED")
 listener:RegisterEvent("COMMODITY_SEARCH_RESULTS_UPDATED")

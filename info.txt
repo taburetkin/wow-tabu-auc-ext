@@ -1,0 +1,19 @@
+Summary:
+On the sell panel, shows the auction house cut (5% at your faction, 15% at a neutral auctioneer) and the gold you keep. Green when that beats the vendor, red when the vendor pays as much or more.
+
+Description:
+While you type a price, the sell panel shows what the auction house takes and what you keep.
+
+- House cut is 5% at a faction auctioneer and 15% at a neutral one.
+- You receive is the stack price minus that cut.
+- Next to it is the difference versus selling the same items to a vendor. Green when the auction pays more, red when the vendor pays the same or more. From 1 gold up, only the gold shows; hover for the exact amount.
+- The auction total stays where it is. These two rows sit under it.
+
+The unit price is filled in for you. The color of the digits says where that number came from, and hovering them shows the same note.
+
+- **Purple:** the lowest buyout of this affix.
+- **Blue:** this affix is not listed, so this is the cheapest listing of the same item.
+- **White:** the item is not gear and it is already listed. This is the auction house minimum.
+- **Red:** the item is not listed. The auction house suggests its own minimum: the vendor price times 1.5, rounded up to the next silver.
+
+There is no scan. One option, off until you turn it on: a stack of more than one can show the vendor price of a single item on the item tooltip, drawn like Sell Price. WoW Forever only.
