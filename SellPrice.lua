@@ -338,15 +338,26 @@ local function OnItemSet(sellFrame)
 	ScheduleRefresh(sellFrame)
 end
 
-local function WatchBox(editBox, sellFrame)
-	if editBox == nil or editBox.TabuAucWatch then
+-- The box method runs from Blizzard's OnTextChanged script. hooksecurefunc returns before the click continues into PickupContainerItem.
+local function WatchBox(editBox)
+	if editBox == nil or editBox.TabuAucWatch or editBox.OnTextChanged == nil then
 		return
 	end
 	editBox.TabuAucWatch = true
-	editBox:HookScript("OnTextChanged", function(_, userInput)
-		if userInput and not sellFrame.PriceInput.TabuAucApplying then
-			sellFrame.TabuAucUserEdited = true
+	hooksecurefunc(editBox, "OnTextChanged", function(box, userInput)
+		if not userInput then
+			return
 		end
+		local money = box:GetParent()
+		local priceInput = money and money:GetParent()
+		if priceInput == nil or priceInput.TabuAucApplying then
+			return
+		end
+		local owner = priceInput:GetParent()
+		if owner == nil then
+			return
+		end
+		owner.TabuAucUserEdited = true
 	end)
 end
 
@@ -363,15 +374,34 @@ local function HookPlayerAmount(sellFrame)
 	end)
 end
 
-local function HookTooltip(widget, priceInput)
-	if widget == nil or widget.TabuAucTooltipHooked then
+local function WatchPriceHover(priceInput)
+	if priceInput.TabuAucHover ~= nil then
 		return
 	end
-	widget.TabuAucTooltipHooked = true
-	widget:HookScript("OnEnter", function()
+	local hover = CreateFrame("Frame", nil, priceInput)
+	priceInput.TabuAucHover = hover
+	hover:SetScript("OnUpdate", function()
+		if not priceInput:IsMouseOver() then
+			priceInput.TabuAucTooltipShown = nil
+			if GameTooltip:GetOwner() == priceInput then
+				GameTooltip:Hide()
+			end
+			return
+		end
+		local text = priceInput.TabuAucTooltip
+		if text == nil then
+			priceInput.TabuAucTooltipShown = nil
+			if GameTooltip:GetOwner() == priceInput then
+				GameTooltip:Hide()
+			end
+			return
+		end
+		if priceInput.TabuAucTooltipShown == text and GameTooltip:GetOwner() == priceInput then
+			return
+		end
+		priceInput.TabuAucTooltipShown = text
 		ShowTooltip(priceInput)
 	end)
-	widget:HookScript("OnLeave", GameTooltip_Hide)
 end
 
 local function HookSellFrame(sellFrame)
@@ -381,13 +411,10 @@ local function HookSellFrame(sellFrame)
 	sellFrame.TabuAucPriceHooked = true
 	local priceInput = sellFrame.PriceInput
 	hooksecurefunc(sellFrame, "SetItem", OnItemSet)
-	sellFrame:HookScript("OnShow", ScheduleRefresh)
+	hooksecurefunc(sellFrame, "OnShow", ScheduleRefresh)
 	HookPlayerAmount(sellFrame)
-	ForEachDigit(priceInput, function(box)
-		WatchBox(box, sellFrame)
-		HookTooltip(box, priceInput)
-	end)
-	HookTooltip(priceInput, priceInput)
+	ForEachDigit(priceInput, WatchBox)
+	WatchPriceHover(priceInput)
 end
 
 local function HookSellFrames()

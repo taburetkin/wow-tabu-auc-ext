@@ -1,5 +1,9 @@
 # tabu-auc-ext
 
+## 1.3.2
+
+- Clicking an item no longer makes Blizzard report that tabu-auc-ext blocked the action. Taking the item back out of the sell slot picks it up again.
+
 ## 1.3.1
 
 - Selling an item to a vendor no longer reports an addon error when the unit price option is on. A buyback tooltip has no bag slot, so the unit price is skipped there.

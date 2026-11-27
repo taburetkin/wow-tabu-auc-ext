@@ -584,9 +584,7 @@ local function HookOneSellFrame(frame)
 	PinSellFooter(frame)
 	hooksecurefunc(frame, "Layout", PinSellFooter)
 	hooksecurefunc(frame, "UpdateTotalPrice", OnTotalPriceUpdated)
-	frame:HookScript("OnShow", function()
-		ScheduleCut(frame)
-	end)
+	hooksecurefunc(frame, "OnShow", ScheduleCut)
 end
 
 local function HookSellFrames()

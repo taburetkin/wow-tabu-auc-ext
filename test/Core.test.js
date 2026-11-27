@@ -137,7 +137,8 @@ test("neutral auctioneer is 15 percent and faction auctioneer is 5", () => {
 	assert.match(lua, /FactionOf\("npc"\)/);
 	assert.match(lua, /FactionOf\("target"\)/);
 	assert.match(lua, /reaction >= NEUTRAL_REACTION/);
-	assert.match(lua, /HookScript\("OnShow"/);
+	assert.match(lua, /hooksecurefunc\(frame, "OnShow", ScheduleCut\)/);
+	assert.equal(lua.includes("HookScript"), false);
 });
 
 test("cut is quantity times unit price times the house percent", () => {

@@ -168,6 +168,9 @@ test("sell frame prices from the auction's own search", () => {
 	assert.match(sell, /ns\.Price\.DefaultCopper\(vendorPrice\)/);
 	assert.match(sell, /ShouldAutoPopulatePrice/);
 	assert.match(sell, /userInput/);
+	assert.match(sell, /hooksecurefunc\(editBox, "OnTextChanged"/);
+	assert.match(sell, /hooksecurefunc\(sellFrame, "OnShow", ScheduleRefresh\)/);
+	assert.equal(sell.includes("HookScript"), false);
 	assert.equal(sell.includes("PreClick"), false);
 	assert.equal(sell.includes("AUCTION_HOUSE_AUCTION_CREATED"), false);
 	assert.equal(sell.includes("ns.Settings"), false);
